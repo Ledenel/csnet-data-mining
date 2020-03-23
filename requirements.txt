@@ -3,3 +3,4 @@ tqdm
 torch
 dpu-utils
 psutil
+requests

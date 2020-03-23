@@ -6,17 +6,21 @@ import torch.utils.data as dt
 
 from functools import lru_cache
 from collections import defaultdict
+from pathlib import Path
 
+from tqdm import tqdm
+
+import zipfile
 import gzip
 import json
 import glob
 import re
-import psutil
+import pkg_resources
 import sys
 import math
-from tqdm import tqdm
 
-import pkg_resources
+import requests
+import psutil
 
 DATA_DIR = pkg_resources.resource_filename(__name__, "data")
 
@@ -62,7 +66,8 @@ class CodeSearchChunkPool():
         dataset_paths = [CodeSearchDataPath(path)
                          for path in glob.glob("**/*.jsonl.gz", recursive=True)]
         self.dataset_paths = dataset_paths
-        self.path_map = {(datapath.lang, datapath.split, datapath.chunk_num)                         : datapath for datapath in dataset_paths}
+        self.path_map = {(datapath.lang, datapath.split, datapath.chunk_num)
+                          : datapath for datapath in dataset_paths}
 
         path_collect = defaultdict(list)
         for datapath in self.path_map.values():
@@ -74,7 +79,8 @@ class CodeSearchChunkPool():
             for path in path_list[:-1]:
                 path.precomputed_len = self.chunk_full_len
 
-        self.max_cache = esetimate_max_cache_count_by_system_memory(next(iter(self.path_map.values())))
+        self.max_cache = esetimate_max_cache_count_by_system_memory(
+            next(iter(self.path_map.values())))
         print(f"max cache num: {self.max_cache}")
 
         @lru_cache(self.max_cache)
@@ -123,20 +129,16 @@ class CodeSearchDatasetLoader():
                 else:
                     raise ValueError(f"invalid chunk index {chunk_slice}")
             return cond
-        needed_paths = [path for path in self.pool.dataset_paths if is_needed(path)]
+        needed_paths = [
+            path for path in self.pool.dataset_paths if is_needed(path)]
         return dt.ConcatDataset(
-            [           
-                self.pool.get_by_path(path) 
+            [
+                self.pool.get_by_path(path)
                 for path in tqdm(needed_paths, desc="Loading chunks")
             ]
         )
 
-
-def init(destination_dir=DATA_DIR):
-    old_dir = os.getcwd()
-    os.makedirs(destination_dir, exist_ok=True)
-    os.chdir(destination_dir)
-
+def load_try():
     for language in ('python', 'javascript', 'java', 'ruby', 'php', 'go'):
         if os.path.exists(f'{language}.unzipped'):
             print(f"already unzipped {language} dataset.")
@@ -144,12 +146,36 @@ def init(destination_dir=DATA_DIR):
             if os.path.exists(f'{language}.zip'):
                 print(f"already downloaded {language} dataset.")
             else:
-                call(
-                    ['wget', f'https://s3.amazonaws.com/code-search-net/CodeSearchNet/v2/{language}.zip', '-O', f'{language}.zip'])
+                g = requests.get(
+                    f'https://s3.amazonaws.com/code-search-net/CodeSearchNet/v2/{language}.zip', stream=True)
+                with open(f'{language}.zip', 'wb') as sav:
+                    for chunk in tqdm(
+                        g.iter_content(chunk_size=1024),
+                        desc=f"downloading {language} dataset",
+                        total=math.ceil(int(g.headers['Content-length'])/1024),
+                        unit="KB"
+                    ):
+                        sav.write(chunk)
 
-            call(['unzip', '-o', f'{language}.zip'])
-            call(['touch', f'{language}.unzipped'])
+            try:
+                with zipfile.ZipFile(f'{language}.zip', 'r') as zip_ref:
+                    members = zip_ref.namelist()
+                    for zipinfo in tqdm(members, desc=f'unzipping {language}.zip'):
+                        zip_ref.extract(zipinfo)
+            except zipfile.BadZipFile:
+                print(f"{language}.zip is broken: removed and retry.")
+                os.remove(f"{language}.zip")
+                load_try()
 
+
+            Path(f'{language}.unzipped').touch()
+
+
+def init(destination_dir=DATA_DIR):
+    old_dir = os.getcwd()
+    os.makedirs(destination_dir, exist_ok=True)
+    os.chdir(destination_dir)
+    load_try()
     os.chdir(old_dir)
 
 
