@@ -1,0 +1,13 @@
+{
+    "python.pythonPath": "/mnt/d/Cache/WSL/conda/envs/csnet-data/bin/python",
+    "python.testing.unittestArgs": [
+        "-v",
+        "-s",
+        "./test",
+        "-p",
+        "*test*.py"
+    ],
+    "python.testing.pytestEnabled": false,
+    "python.testing.nosetestsEnabled": false,
+    "python.testing.unittestEnabled": true
+}

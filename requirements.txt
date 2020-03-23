@@ -1,0 +1,5 @@
+git+https://github.com/Ledenel/py-tree-sitter.git
+tqdm
+torch
+dpu-utils
+psutil
