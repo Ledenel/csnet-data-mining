@@ -14,6 +14,7 @@ import re
 import psutil
 import sys
 import math
+from tqdm import tqdm
 
 import pkg_resources
 
@@ -37,12 +38,8 @@ class CodeSearchChunk(dt.Dataset):
         if not isinstance(path, CodeSearchDataPath):
             path = CodeSearchDataPath(path)
         self.path = path
-
-    @property
-    @lru_cache(1)
-    def data(self):
         with gzip.open(self.path.full_path, "r") as f:
-            return [json.loads(line) for line in f]
+            self.data = [json.loads(line) for line in f]
 
     def __len__(self):
         return self.path.precomputed_len if self.path.precomputed_len is not None else len(self.data)
@@ -51,19 +48,21 @@ class CodeSearchChunk(dt.Dataset):
         return self.data[index]
 
 
-def esetimate_max_cache_count_by_system_memory(datapath: CodeSearchDataPath, using_percent=0.6):
+def esetimate_max_cache_count_by_system_memory(datapath: CodeSearchDataPath, using_percent=0.3):
     _, available, *_ = psutil.virtual_memory()
     test_item = CodeSearchChunk(datapath)
-    return math.floor(available * using_percent / sys.getsizeof(test_item.data))
+    data_size = sys.getsizeof(test_item.data)
+    return math.floor(available * using_percent / data_size)
 
 
 class CodeSearchChunkPool():
     def __init__(self, root_path=DATA_DIR, chunk_full_len=30000):
         self.root_path = os.path.abspath(root_path)
         init(root_path)
-        dataset_paths = (CodeSearchDataPath(path)
-                         for path in glob.glob("**/*.jsonl.gz", recursive=True))
-        self.path_map = {(datapath.lang, datapath.split, datapath.chunk)                         : datapath for datapath in dataset_paths}
+        dataset_paths = [CodeSearchDataPath(path)
+                         for path in glob.glob("**/*.jsonl.gz", recursive=True)]
+        self.dataset_paths = dataset_paths
+        self.path_map = {(datapath.lang, datapath.split, datapath.chunk_num)                         : datapath for datapath in dataset_paths}
 
         path_collect = defaultdict(list)
         for datapath in self.path_map.values():
@@ -75,58 +74,62 @@ class CodeSearchChunkPool():
             for path in path_list[:-1]:
                 path.precomputed_len = self.chunk_full_len
 
-        self.max_cache = esetimate_max_cache_count_by_system_memory(self.path_map.values()[0])
+        self.max_cache = esetimate_max_cache_count_by_system_memory(next(iter(self.path_map.values())))
         print(f"max cache num: {self.max_cache}")
 
         @lru_cache(self.max_cache)
-        def get(lang, split, chunk):
-            return CodeSearchChunk(self.path_map[(lang, split, chunk)])
+        def get(datapath: CodeSearchDataPath):
+            return CodeSearchChunk(datapath)
 
         self.get_func = get
 
-    def __getitem__(self, lang, split, chunk):
+    def get_by_path(self, datapath: CodeSearchDataPath):
         get_func = self.get_func
-        return get_func(lang, split, chunk)
+        return get_func(datapath)
+
+    def __getitem__(self, lang, split, chunk):
+        return self.get_by_path(self.path_map[(lang, split, chunk)])
 
 
 class CodeSearchDatasetLoader():
     def __init__(self, root_path=DATA_DIR):
         self.root_path = os.path.abspath(root_path)
-        init(root_path)
+        init(self.root_path)
         self.pool = CodeSearchChunkPool(root_path)
-
-    @property
-    def max_chunks(self):
-        return len(self.gz_dataset_chunk)
 
     @property
     @lru_cache(1)
     def language(self):
-        return list(set(x.lang for x in self.gz_dataset_chunks))
+        return list(set(x.lang for x in self.pool.dataset_paths))
 
     @property
     @lru_cache(1)
     def split(self):
-        return list(set(x.split for x in self.gz_dataset_chunks))
+        return list(set(x.split for x in self.pool.dataset_paths))
 
     def get(self, language=None, split=None, chunk_slice=None):
-        def is_needed(chunk: CodeSearchChunk):
+        def is_needed(path: CodeSearchDataPath):
             cond = True
             if language is not None:
-                cond = cond and chunk.path.lang == language
+                cond = cond and path.lang == language
             if split is not None:
-                cond = cond and chunk.path.split == split
+                cond = cond and path.split == split
             if chunk_slice is not None:
                 if isinstance(chunk_slice, int):
-                    cond = cond and chunk.path.chunk_num == chunk_slice
+                    cond = cond and path.chunk_num == chunk_slice
                 elif isinstance(chunk_slice, slice):
-                    cond = cond and chunk.path.chunk_num in range(
+                    cond = cond and path.chunk_num in range(
                         *chunk_slice.indices(self.max_chunks))
                 else:
                     raise ValueError(f"invalid chunk index {chunk_slice}")
             return cond
-
-        return dt.ConcatDataset([x for x in self.gz_dataset_chunks if is_needed(x)])
+        needed_paths = [path for path in self.pool.dataset_paths if is_needed(path)]
+        return dt.ConcatDataset(
+            [           
+                self.pool.get_by_path(path) 
+                for path in tqdm(needed_paths, desc="Loading chunks")
+            ]
+        )
 
 
 def init(destination_dir=DATA_DIR):
