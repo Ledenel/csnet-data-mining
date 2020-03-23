@@ -60,7 +60,7 @@ def esetimate_max_cache_count_by_system_memory(datapath: CodeSearchDataPath, usi
 
 
 class CodeSearchChunkPool():
-    def __init__(self, root_path=DATA_DIR, chunk_full_len=30000):
+    def __init__(self, root_path=DATA_DIR, chunk_full_len=30000, max_chunks_in_memory=None):
         self.root_path = os.path.abspath(root_path)
         init(root_path)
         dataset_paths = [CodeSearchDataPath(path)
@@ -78,9 +78,9 @@ class CodeSearchChunkPool():
             path_list.sort(key=lambda x: x.chunk_num)
             for path in path_list[:-1]:
                 path.precomputed_len = self.chunk_full_len
+                precomputed_path = path
 
-        self.max_cache = esetimate_max_cache_count_by_system_memory(
-            next(iter(self.path_map.values())))
+        self.max_cache = max_chunks_in_memory or esetimate_max_cache_count_by_system_memory(precomputed_path)
         print(f"max cache num: {self.max_cache}")
 
         @lru_cache(self.max_cache)
@@ -96,6 +96,20 @@ class CodeSearchChunkPool():
     def __getitem__(self, lang, split, chunk):
         return self.get_by_path(self.path_map[(lang, split, chunk)])
 
+class LazyLoadCodeSearchChunk(dt.Dataset):
+    def __init__(self, path:CodeSearchDataPath, pool:CodeSearchChunkPool):
+        super().__init__()
+        self.path = path
+        self.pool = pool
+
+    def __getitem__(self, index):
+        return self._gen()[index]
+
+    def _gen(self):
+        return self.pool.get_by_path(self.path)
+
+    def __len__(self):
+        return self.path.precomputed_len or len(self._gen())
 
 class CodeSearchDatasetLoader():
     def __init__(self, root_path=DATA_DIR):
@@ -130,11 +144,12 @@ class CodeSearchDatasetLoader():
                     raise ValueError(f"invalid chunk index {chunk_slice}")
             return cond
         needed_paths = [
-            path for path in self.pool.dataset_paths if is_needed(path)]
+            path for path in self.pool.dataset_paths if is_needed(path)
+        ]
         return dt.ConcatDataset(
             [
-                self.pool.get_by_path(path)
-                for path in tqdm(needed_paths, desc="Loading chunks")
+                LazyLoadCodeSearchChunk(path, self.pool)
+                for path in needed_paths
             ]
         )
 
