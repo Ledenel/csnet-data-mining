@@ -4,3 +4,4 @@ torch
 dpu-utils
 psutil
 requests
+ring

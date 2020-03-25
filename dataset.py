@@ -18,9 +18,12 @@ import re
 import pkg_resources
 import sys
 import math
+import multiprocessing
 
 import requests
 import psutil
+import ring
+# import methodtools
 
 DATA_DIR = pkg_resources.resource_filename(__name__, "data")
 
@@ -34,22 +37,21 @@ class CodeSearchDataPath:
         self.lang, self.split, self.chunk_num = reg.match(name).groups()
         self.chunk_num = int(self.chunk_num)
         self.precomputed_len = None
-    
+
     ORDER = {
-        "train" : 1,
-        "valid" : 2,
-        "test" : 3,
+        "train": 1,
+        "valid": 2,
+        "test": 3,
     }
 
     def __str__(self):
         return f"{self.lang}-{self.split}-{self.chunk_num}"
-    
+
     def _tuple_key(self):
         return self.lang, CodeSearchDataPath.ORDER[self.split], self.chunk_num
 
     def __lt__(self, other):
         return self._tuple_key() < other._tuple_key()
-
 
 
 class CodeSearchChunk(dt.Dataset):
@@ -76,6 +78,9 @@ def esetimate_max_cache_count_by_system_memory(datapath: CodeSearchDataPath, usi
     return math.floor(available * using_percent / data_size)
 
 
+def code_search_chunk_get_func(datapath: CodeSearchDataPath):
+    return CodeSearchChunk(datapath)
+
 class CodeSearchChunkPool():
     def __init__(self, root_path=DATA_DIR, chunk_full_len=30000, max_chunks_in_memory=None):
         self.root_path = os.path.abspath(root_path)
@@ -83,8 +88,7 @@ class CodeSearchChunkPool():
         dataset_paths = [CodeSearchDataPath(path)
                          for path in glob.glob("**/*.jsonl.gz", recursive=True)]
         self.dataset_paths = dataset_paths
-        self.path_map = {(datapath.lang, datapath.split, datapath.chunk_num)
-                          : datapath for datapath in dataset_paths}
+        self.path_map = {(datapath.lang, datapath.split, datapath.chunk_num)                         : datapath for datapath in dataset_paths}
 
         path_collect = defaultdict(list)
         for datapath in self.path_map.values():
@@ -97,14 +101,11 @@ class CodeSearchChunkPool():
                 path.precomputed_len = self.chunk_full_len
                 precomputed_path = path
 
-        self.max_cache = max_chunks_in_memory or esetimate_max_cache_count_by_system_memory(precomputed_path)
+        self.max_cache = max_chunks_in_memory or esetimate_max_cache_count_by_system_memory(
+            precomputed_path)
         print(f"max cache num: {self.max_cache}")
 
-        @lru_cache(self.max_cache)
-        def get(datapath: CodeSearchDataPath):
-            return CodeSearchChunk(datapath)
-
-        self.get_func = get
+        self.get_func = ring.lru(maxsize=self.max_cache)(code_search_chunk_get_func)
 
     def get_by_path(self, datapath: CodeSearchDataPath):
         get_func = self.get_func
@@ -113,26 +114,32 @@ class CodeSearchChunkPool():
     def __getitem__(self, lang, split, chunk):
         return self.get_by_path(self.path_map[(lang, split, chunk)])
 
+def load_from_pool(pool_path_tuple):
+    pool, path = pool_path_tuple
+    return pool.get_by_path(path)
+
 class LazyLoadCodeSearchChunk(dt.Dataset):
-    def __init__(self, path:CodeSearchDataPath, pool:CodeSearchChunkPool):
+    def __init__(self, path: CodeSearchDataPath, pool: CodeSearchChunkPool):
         super().__init__()
         self.path = path
         self.pool = pool
 
     def __getitem__(self, index):
-        return self._gen()[index]
+        return self._load()[index]
 
-    def _gen(self):
-        return self.pool.get_by_path(self.path)
+    def _load(self):
+        return load_from_pool((self.pool, self.path))
 
     def __len__(self):
-        return self.path.precomputed_len or len(self._gen())
+        return self.path.precomputed_len or len(self._load())
+
 
 class CodeSearchDatasetLoader():
     def __init__(self, root_path=DATA_DIR, max_chunks_in_memory=None):
         self.root_path = os.path.abspath(root_path)
         init(self.root_path)
-        self.pool = CodeSearchChunkPool(root_path, max_chunks_in_memory=max_chunks_in_memory)
+        self.pool = CodeSearchChunkPool(
+            root_path, max_chunks_in_memory=max_chunks_in_memory)
 
     @property
     @lru_cache(1)
@@ -144,7 +151,7 @@ class CodeSearchDatasetLoader():
     def split(self):
         return list(set(x.split for x in self.pool.dataset_paths))
 
-    def get(self, language=None, split=None, chunk_slice=None):
+    def get(self, language=None, split=None, chunk_slice=None, force_lazy=False): # TODO add eager multi-processing
         def is_needed(path: CodeSearchDataPath):
             cond = True
             if language is not None:
@@ -164,12 +171,23 @@ class CodeSearchDatasetLoader():
             path for path in self.pool.dataset_paths if is_needed(path)
         ]
         needed_paths.sort()
-        return dt.ConcatDataset(
-            [
-                LazyLoadCodeSearchChunk(path, self.pool)
-                for path in needed_paths
-            ]
-        )
+        lazy_dataset_list = [
+            LazyLoadCodeSearchChunk(path, self.pool)
+            for path in needed_paths
+        ]
+        if len(needed_paths) <= self.pool.max_cache and not force_lazy:
+            pool_path_tuples_no_cache = [path for path in needed_paths if self.pool.get_func.has(path)]
+            with multiprocessing.Pool() as pool:
+                for chunk in tqdm(
+                    pool.imap_unordered(code_search_chunk_get_func, pool_path_tuples_no_cache),
+                    desc=f"loading chunks ({pool._processes}-proc)",
+                    total=len(needed_paths)
+                ):
+                    chunk:CodeSearchChunk
+                    self.pool.get_func.set(chunk, chunk.path)
+        dataset = dt.ConcatDataset(lazy_dataset_list)
+        return dataset
+
 
 def load_try():
     for language in ('python', 'javascript', 'java', 'ruby', 'php', 'go'):
@@ -199,7 +217,6 @@ def load_try():
                 print(f"{language}.zip is broken: removed and retry.")
                 os.remove(f"{language}.zip")
                 load_try()
-
 
             Path(f'{language}.unzipped').touch()
 
