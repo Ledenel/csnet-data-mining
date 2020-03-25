@@ -8,7 +8,7 @@ from glob import glob
 dir_root = pkg_resources.resource_filename(__name__, "sitter-compo")
 dir_asterick = os.path.join(os.path.abspath(dir_root), "*")
 print(dir_asterick)
-dirs = glob(dir_asterick,recursive=False)
+dirs = glob(dir_asterick, recursive=False)
 
 print(dirs)
 Language.build_library(

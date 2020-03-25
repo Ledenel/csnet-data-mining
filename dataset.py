@@ -34,6 +34,22 @@ class CodeSearchDataPath:
         self.lang, self.split, self.chunk_num = reg.match(name).groups()
         self.chunk_num = int(self.chunk_num)
         self.precomputed_len = None
+    
+    ORDER = {
+        "train" : 1,
+        "valid" : 2,
+        "test" : 3,
+    }
+
+    def __str__(self):
+        return f"{self.lang}-{self.split}-{self.chunk_num}"
+    
+    def _tuple_key(self):
+        return self.lang, CodeSearchDataPath.ORDER[self.split], self.chunk_num
+
+    def __lt__(self, other):
+        return self._tuple_key() < other._tuple_key()
+
 
 
 class CodeSearchChunk(dt.Dataset):
@@ -42,6 +58,7 @@ class CodeSearchChunk(dt.Dataset):
         if not isinstance(path, CodeSearchDataPath):
             path = CodeSearchDataPath(path)
         self.path = path
+        print(f"loading {path}")
         with gzip.open(self.path.full_path, "r") as f:
             self.data = [json.loads(line) for line in f]
 
@@ -112,10 +129,10 @@ class LazyLoadCodeSearchChunk(dt.Dataset):
         return self.path.precomputed_len or len(self._gen())
 
 class CodeSearchDatasetLoader():
-    def __init__(self, root_path=DATA_DIR):
+    def __init__(self, root_path=DATA_DIR, max_chunks_in_memory=None):
         self.root_path = os.path.abspath(root_path)
         init(self.root_path)
-        self.pool = CodeSearchChunkPool(root_path)
+        self.pool = CodeSearchChunkPool(root_path, max_chunks_in_memory=max_chunks_in_memory)
 
     @property
     @lru_cache(1)
@@ -146,6 +163,7 @@ class CodeSearchDatasetLoader():
         needed_paths = [
             path for path in self.pool.dataset_paths if is_needed(path)
         ]
+        needed_paths.sort()
         return dt.ConcatDataset(
             [
                 LazyLoadCodeSearchChunk(path, self.pool)
