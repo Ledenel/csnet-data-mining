@@ -4,7 +4,7 @@ import os
 
 import torch.utils.data as dt
 
-from functools import lru_cache
+from itertools import count
 from collections import defaultdict
 from pathlib import Path
 
@@ -57,14 +57,18 @@ class CodeSearchDataPath:
 
 
 class CodeSearchChunk(dt.Dataset):
-    def __init__(self, path):
+    def __init__(self, path, max_picked=None):
         super().__init__()
         if not isinstance(path, CodeSearchDataPath):
             path = CodeSearchDataPath(path)
         self.path = path
+        if max_picked is not None:
+            pick_indexes = range(max_picked)
+        else:
+            pick_indexes = count(0)
         print(f"loading {path}")
         with gzip.open(self.path.full_path, "r") as f:
-            self.data = [self.preprocess(line) for line in f]
+            self.data = [self.preprocess(line) for _, line in zip(pick_indexes, f)]
 
     def preprocess(self, line):
         item = json.loads(line)
@@ -78,18 +82,11 @@ class CodeSearchChunk(dt.Dataset):
         return self.data[index]
 
 
-def esetimate_max_cache_count_by_system_memory(datapath: CodeSearchDataPath, using_percent=0.3):
-    _, available, *_ = psutil.virtual_memory()
-    test_item = CodeSearchChunk(datapath) #FIXME: estimate not by full chunk, or get from cache if possible
-    data_size = sys.getsizeof(test_item.data)
-    return math.floor(available * using_percent / data_size)
-
-
 def code_search_chunk_get_func(datapath: CodeSearchDataPath):
     return CodeSearchChunk(datapath)
 
 class CodeSearchChunkPool():
-    def __init__(self, root_path=DATA_DIR, chunk_full_len=30000, max_chunks_in_memory=None):
+    def __init__(self, root_path=DATA_DIR, chunk_full_len=30000, max_chunks_in_memory=None, using_percent=0.3):
         self.root_path = os.path.abspath(root_path)
         init(root_path)
         dataset_paths = [CodeSearchDataPath(path)
@@ -106,10 +103,9 @@ class CodeSearchChunkPool():
             path_list.sort(key=lambda x: x.chunk_num)
             for path in path_list[:-1]:
                 path.precomputed_len = self.chunk_full_len
-                precomputed_path = path
 
-        self.max_cache = max_chunks_in_memory or esetimate_max_cache_count_by_system_memory(
-            precomputed_path)
+        self.using_percent = using_percent
+        self.max_cache = max_chunks_in_memory or self.estimate_max_cache_count_by_system_memory()
         print(f"max cache num: {self.max_cache}")
 
         self.get_func = ring.lru(maxsize=self.max_cache)(code_search_chunk_get_func)
@@ -117,6 +113,16 @@ class CodeSearchChunkPool():
     def get_by_path(self, datapath: CodeSearchDataPath):
         get_func = self.get_func
         return get_func(datapath)
+
+    def estimate_max_cache_count_by_system_memory(self, estimate_count=50):
+        datapath = self.dataset_paths[0]
+        using_percent = self.using_percent
+        _, available, *_ = psutil.virtual_memory()
+        test_item = CodeSearchChunk(datapath, max_picked=estimate_count) 
+        data_size = sys.getsizeof(test_item.data)
+        print(f"size:{data_size}, len:{len(test_item)}, available:{available}")
+        actual_chunk_estimated = data_size / len(test_item) * self.chunk_full_len
+        return math.floor(available * using_percent / actual_chunk_estimated)
 
     def __getitem__(self, lang, split, chunk):
         return self.get_by_path(self.path_map[(lang, split, chunk)])
@@ -148,13 +154,13 @@ class CodeSearchDatasetLoader():
         self.pool = CodeSearchChunkPool(
             root_path, max_chunks_in_memory=max_chunks_in_memory)
 
+    @ring.lru()
     @property
-    @lru_cache(1)
     def language(self):
         return list(set(x.lang for x in self.pool.dataset_paths))
 
+    @ring.lru()
     @property
-    @lru_cache(1)
     def split(self):
         return list(set(x.split for x in self.pool.dataset_paths))
 

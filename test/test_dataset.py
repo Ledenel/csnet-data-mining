@@ -9,7 +9,7 @@ class DatasetTest(TestCase):
 
     def test_cache(self):
         loader = ds.CodeSearchDatasetLoader(max_chunks_in_memory=2)
-        get_func = loader.pool.get_func
+        get_func = loader.pool.get_func.storage.backend
         dataset = loader.get(language="python")
         assert get_func.cache_info().hits == 0
         samp1 = dataset[0]
