@@ -23,6 +23,8 @@ import multiprocessing
 import requests
 import psutil
 import ring
+
+from parsing.sitter_lang import get_parser
 # import methodtools
 
 DATA_DIR = pkg_resources.resource_filename(__name__, "data")
@@ -62,7 +64,12 @@ class CodeSearchChunk(dt.Dataset):
         self.path = path
         print(f"loading {path}")
         with gzip.open(self.path.full_path, "r") as f:
-            self.data = [json.loads(line) for line in f]
+            self.data = [self.preprocess(line) for line in f]
+
+    def preprocess(self, line):
+        item = json.loads(line)
+        
+        return item
 
     def __len__(self):
         return self.path.precomputed_len if self.path.precomputed_len is not None else len(self.data)
@@ -73,7 +80,7 @@ class CodeSearchChunk(dt.Dataset):
 
 def esetimate_max_cache_count_by_system_memory(datapath: CodeSearchDataPath, using_percent=0.3):
     _, available, *_ = psutil.virtual_memory()
-    test_item = CodeSearchChunk(datapath)
+    test_item = CodeSearchChunk(datapath) #FIXME: estimate not by full chunk, or get from cache if possible
     data_size = sys.getsizeof(test_item.data)
     return math.floor(available * using_percent / data_size)
 
@@ -151,7 +158,7 @@ class CodeSearchDatasetLoader():
     def split(self):
         return list(set(x.split for x in self.pool.dataset_paths))
 
-    def get(self, language=None, split=None, chunk_slice=None, force_lazy=False): # TODO add eager multi-processing
+    def get(self, language=None, split=None, chunk_slice=None, force_lazy=False):
         def is_needed(path: CodeSearchDataPath):
             cond = True
             if language is not None:
@@ -179,7 +186,7 @@ class CodeSearchDatasetLoader():
             pool_path_tuples_no_cache = [path for path in needed_paths if self.pool.get_func.has(path)]
             with multiprocessing.Pool() as pool:
                 for chunk in tqdm(
-                    pool.imap_unordered(code_search_chunk_get_func, pool_path_tuples_no_cache),
+                    pool.imap_unordered(CodeSearchChunk, pool_path_tuples_no_cache),
                     desc=f"loading chunks ({pool._processes}-proc)",
                     total=len(needed_paths)
                 ):
