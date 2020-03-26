@@ -5,7 +5,7 @@ class DatasetTest(TestCase):
     def test_dataset_load(self):
         loader = ds.CodeSearchDatasetLoader()
         samp = loader.get(language="ruby")[0]
-        assert samp['language'] == "ruby"
+        assert samp.language == "ruby"
 
     def test_cache(self):
         loader = ds.CodeSearchDatasetLoader(max_chunks_in_memory=2)

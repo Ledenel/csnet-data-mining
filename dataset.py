@@ -4,8 +4,8 @@ import os
 
 import torch.utils.data as dt
 
-from itertools import count
-from collections import defaultdict
+from itertools import count, chain
+from collections import defaultdict, namedtuple, Counter
 from pathlib import Path
 
 from tqdm import tqdm
@@ -28,6 +28,27 @@ from parsing.sitter_lang import get_parser
 # import methodtools
 
 DATA_DIR = pkg_resources.resource_filename(__name__, "data")
+
+_code_sample_fields = [
+    'repo',
+    'path',
+    'func_name',
+    'original_string',
+    'language',
+    'code',
+    'code_tokens',
+    'docstring',
+    'docstring_tokens',
+    'sha',
+    'url',
+    'partition',
+    'ast',
+]
+
+CodeSample = namedtuple(
+    "CodeSample",
+    _code_sample_fields
+)
 
 
 class CodeSearchDataPath:
@@ -68,11 +89,24 @@ class CodeSearchChunk(dt.Dataset):
             pick_indexes = count(0)
         print(f"loading {path}")
         with gzip.open(self.path.full_path, "r") as f:
-            self.data = [self.preprocess(line) for _, line in zip(pick_indexes, f)]
+            self.data = [self.preprocess(line)
+                         for _, line in zip(pick_indexes, f)]
+        print(f"loading vocab for {path}")
+        self.code_vocab = Counter(
+            word
+            for sample in self.data
+            for word in sample.code_tokens
+        )
 
-    def preprocess(self, line):
-        item = json.loads(line)
-        
+    def preprocess(self, line) -> CodeSample:
+        item_dict = json.loads(line)
+        item_template = {
+            field: None for field in _code_sample_fields
+        }
+        item_template.update(item_dict)
+        item = CodeSample(
+            **item_template
+        )
         return item
 
     def __len__(self):
@@ -85,12 +119,15 @@ class CodeSearchChunk(dt.Dataset):
 def code_search_chunk_get_func(datapath: CodeSearchDataPath):
     return CodeSearchChunk(datapath)
 
+
 class CodeSearchChunkPool():
     def __init__(self, root_path=DATA_DIR, chunk_full_len=30000, max_chunks_in_memory=None, using_percent=0.3):
         self.root_path = os.path.abspath(root_path)
         init(root_path)
-        dataset_paths = [CodeSearchDataPath(path)
-                         for path in glob.glob("**/*.jsonl.gz", recursive=True)]
+        dataset_paths = [
+            CodeSearchDataPath(path)
+            for path in glob.glob("**/*.jsonl.gz", recursive=True)
+        ]
         self.dataset_paths = dataset_paths
         self.path_map = {(datapath.lang, datapath.split, datapath.chunk_num)                         : datapath for datapath in dataset_paths}
 
@@ -108,7 +145,8 @@ class CodeSearchChunkPool():
         self.max_cache = max_chunks_in_memory or self.estimate_max_cache_count_by_system_memory()
         print(f"max cache num: {self.max_cache}")
 
-        self.get_func = ring.lru(maxsize=self.max_cache)(code_search_chunk_get_func)
+        self.get_func = ring.lru(maxsize=self.max_cache)(
+            code_search_chunk_get_func)
 
     def get_by_path(self, datapath: CodeSearchDataPath):
         get_func = self.get_func
@@ -118,18 +156,21 @@ class CodeSearchChunkPool():
         datapath = self.dataset_paths[0]
         using_percent = self.using_percent
         _, available, *_ = psutil.virtual_memory()
-        test_item = CodeSearchChunk(datapath, max_picked=estimate_count) 
+        test_item = CodeSearchChunk(datapath, max_picked=estimate_count)
         data_size = sys.getsizeof(test_item.data)
         print(f"size:{data_size}, len:{len(test_item)}, available:{available}")
-        actual_chunk_estimated = data_size / len(test_item) * self.chunk_full_len
+        actual_chunk_estimated = data_size / \
+            len(test_item) * self.chunk_full_len
         return math.floor(available * using_percent / actual_chunk_estimated)
 
     def __getitem__(self, lang, split, chunk):
         return self.get_by_path(self.path_map[(lang, split, chunk)])
 
+
 def load_from_pool(pool_path_tuple):
     pool, path = pool_path_tuple
     return pool.get_by_path(path)
+
 
 class LazyLoadCodeSearchChunk(dt.Dataset):
     def __init__(self, path: CodeSearchDataPath, pool: CodeSearchChunkPool):
@@ -189,14 +230,16 @@ class CodeSearchDatasetLoader():
             for path in needed_paths
         ]
         if len(needed_paths) <= self.pool.max_cache and not force_lazy:
-            pool_path_tuples_no_cache = [path for path in needed_paths if self.pool.get_func.has(path)]
+            pool_path_tuples_no_cache = [
+                path for path in needed_paths if self.pool.get_func.has(path)]
             with multiprocessing.Pool() as pool:
                 for chunk in tqdm(
-                    pool.imap_unordered(CodeSearchChunk, pool_path_tuples_no_cache),
+                    pool.imap_unordered(
+                        CodeSearchChunk, pool_path_tuples_no_cache),
                     desc=f"loading chunks ({pool._processes}-proc)",
                     total=len(needed_paths)
                 ):
-                    chunk:CodeSearchChunk
+                    chunk: CodeSearchChunk
                     self.pool.get_func.set(chunk, chunk.path)
         dataset = dt.ConcatDataset(lazy_dataset_list)
         return dataset
