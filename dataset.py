@@ -23,6 +23,7 @@ import multiprocessing
 import requests
 import psutil
 import ring
+import logging
 
 from parsing.sitter_lang import get_parser
 # import methodtools
@@ -87,11 +88,11 @@ class CodeSearchChunk(dt.Dataset):
             pick_indexes = range(max_picked)
         else:
             pick_indexes = count(0)
-        print(f"loading {path}")
+        logging.debug(f"loading {path}")
         with gzip.open(self.path.full_path, "r") as f:
             self.data = [self.preprocess(line)
                          for _, line in zip(pick_indexes, f)]
-        print(f"loading vocab for {path}")
+        logging.debug(f"loading vocab for {path}")
         self.code_vocab = Counter(
             word
             for sample in self.data
@@ -143,7 +144,7 @@ class CodeSearchChunkPool():
 
         self.using_percent = using_percent
         self.max_cache = max_chunks_in_memory or self.estimate_max_cache_count_by_system_memory()
-        print(f"max cache num: {self.max_cache}")
+        logging.debug(f"max cache num: {self.max_cache}")
 
         self.get_func = ring.lru(maxsize=self.max_cache)(
             code_search_chunk_get_func)
@@ -158,7 +159,7 @@ class CodeSearchChunkPool():
         _, available, *_ = psutil.virtual_memory()
         test_item = CodeSearchChunk(datapath, max_picked=estimate_count)
         data_size = sys.getsizeof(test_item.data)
-        print(f"size:{data_size}, len:{len(test_item)}, available:{available}")
+        logging.debug(f"size:{data_size}, len:{len(test_item)}, available:{available}")
         actual_chunk_estimated = data_size / \
             len(test_item) * self.chunk_full_len
         return math.floor(available * using_percent / actual_chunk_estimated)
@@ -248,10 +249,10 @@ class CodeSearchDatasetLoader():
 def load_try():
     for language in ('python', 'javascript', 'java', 'ruby', 'php', 'go'):
         if os.path.exists(f'{language}.unzipped'):
-            print(f"already unzipped {language} dataset.")
+            logging.info(f"already unzipped {language} dataset.")
         else:
             if os.path.exists(f'{language}.zip'):
-                print(f"already downloaded {language} dataset.")
+                logging.info(f"already downloaded {language} dataset.")
             else:
                 g = requests.get(
                     f'https://s3.amazonaws.com/code-search-net/CodeSearchNet/v2/{language}.zip', stream=True)
@@ -270,7 +271,7 @@ def load_try():
                     for zipinfo in tqdm(members, desc=f'unzipping {language}.zip'):
                         zip_ref.extract(zipinfo)
             except zipfile.BadZipFile:
-                print(f"{language}.zip is broken: removed and retry.")
+                logging.warn(f"{language}.zip is broken: removed and retry.")
                 os.remove(f"{language}.zip")
                 load_try()
 
