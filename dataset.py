@@ -164,7 +164,8 @@ class CodeSearchChunkPool():
             len(test_item) * self.chunk_full_len
         return math.floor(available * using_percent / actual_chunk_estimated)
 
-    def __getitem__(self, lang, split, chunk):
+    def __getitem__(self, lang_split_chunk_triple):
+        lang, split, chunk = lang_split_chunk_triple
         return self.get_by_path(self.path_map[(lang, split, chunk)])
 
 
@@ -218,7 +219,7 @@ class CodeSearchDatasetLoader():
                     cond = cond and path.chunk_num == chunk_slice
                 elif isinstance(chunk_slice, slice):
                     cond = cond and path.chunk_num in range(
-                        *chunk_slice.indices(self.max_chunks))
+                        *chunk_slice.indices(len(self.pool.dataset_paths)))
                 else:
                     raise ValueError(f"invalid chunk index {chunk_slice}")
             return cond
