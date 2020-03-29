@@ -5,3 +5,4 @@ dpu-utils
 psutil
 requests
 ring
+pympler

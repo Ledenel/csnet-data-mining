@@ -9,6 +9,7 @@ from collections import defaultdict, namedtuple, Counter
 from pathlib import Path
 
 from tqdm import tqdm
+from pympler import asizeof
 
 import zipfile
 import gzip
@@ -122,7 +123,7 @@ def code_search_chunk_get_func(datapath: CodeSearchDataPath):
 
 
 class CodeSearchChunkPool():
-    def __init__(self, root_path=DATA_DIR, chunk_full_len=30000, max_chunks_in_memory=None, using_percent=0.3):
+    def __init__(self, root_path=DATA_DIR, chunk_full_len=30000, max_chunks_in_memory=None, using_percent=0.6):
         self.root_path = os.path.abspath(root_path)
         init(root_path)
         dataset_paths = [
@@ -158,7 +159,7 @@ class CodeSearchChunkPool():
         using_percent = self.using_percent
         _, available, *_ = psutil.virtual_memory()
         test_item = CodeSearchChunk(datapath, max_picked=estimate_count)
-        data_size = sys.getsizeof(test_item.data)
+        data_size = asizeof.asizeof(test_item) # TODO using pympler to estimate full size
         logging.debug(f"size:{data_size}, len:{len(test_item)}, available:{available}")
         actual_chunk_estimated = data_size / \
             len(test_item) * self.chunk_full_len
