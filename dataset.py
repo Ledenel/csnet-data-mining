@@ -10,6 +10,7 @@ from pathlib import Path
 
 from tqdm import tqdm
 from pympler import asizeof
+from attributedict.collections import AttributeDict
 
 import zipfile
 import gzip
@@ -29,28 +30,41 @@ import logging
 from parsing.sitter_lang import get_parser
 # import methodtools
 
+from typing import Iterable
+from tree_sitter import TreeCursor, Node
+
+
+def node_cursor_iter(cursor) -> Iterable[TreeCursor]:
+    yield cursor
+    if cursor.goto_first_child():
+        yield from node_cursor_iter(cursor)
+        while cursor.goto_next_sibling():
+            yield from node_cursor_iter(cursor)
+        cursor.goto_parent()
+
+
 DATA_DIR = pkg_resources.resource_filename(__name__, "data")
 
-_code_sample_fields = [
-    'repo',
-    'path',
-    'func_name',
-    'original_string',
-    'language',
-    'code',
-    'code_tokens',
-    'docstring',
-    'docstring_tokens',
-    'sha',
-    'url',
-    'partition',
-    'ast',
-]
+# _code_sample_fields = [
+#     'repo',
+#     'path',
+#     'func_name',
+#     'original_string',
+#     'language',
+#     'code',
+#     'code_tokens',
+#     'docstring',
+#     'docstring_tokens',
+#     'sha',
+#     'url',
+#     'partition',
+#     'ast_root',
+# ]
 
-CodeSample = namedtuple(
-    "CodeSample",
-    _code_sample_fields
-)
+# CodeSample = namedtuple(
+#     "CodeSample",
+#     _code_sample_fields
+# )
 
 
 class CodeSearchDataPath:
@@ -99,16 +113,34 @@ class CodeSearchChunk(dt.Dataset):
             for sample in self.data
             for word in sample.code_tokens
         )
+        
 
-    def preprocess(self, line) -> CodeSample:
-        item_dict = json.loads(line)
-        item_template = {
-            field: None for field in _code_sample_fields
-        }
-        item_template.update(item_dict)
-        item = CodeSample(
-            **item_template
-        )
+    def preprocess(self, line):
+        item_template = json.loads(line)
+        item = AttributeDict(item_template)
+
+        # convert code to bytes
+        item.code = item.code.encode("utf-8")
+
+        # get ast
+        parser = get_parser(item.language)
+        ast = parser.parse(item.code)
+
+        text_ctx = []
+        for cur in node_cursor_iter(ast.walk()):
+            cur: TreeCursor
+            if not cur.node.children:
+                node = cur.node
+                node: Node
+                text_ctx.append(
+                    (cur.current_field_name(),
+                     node.type,
+                     item.code[node.start_byte:node.end_byte].decode('utf-8'),
+                     )
+                )
+
+        item.text_ctx = text_ctx
+
         return item
 
     def __len__(self):
@@ -131,7 +163,8 @@ class CodeSearchChunkPool():
             for path in glob.glob("**/*.jsonl.gz", recursive=True)
         ]
         self.dataset_paths = dataset_paths
-        self.path_map = {(datapath.lang, datapath.split, datapath.chunk_num)                         : datapath for datapath in dataset_paths}
+        self.path_map = {(datapath.lang, datapath.split, datapath.chunk_num)
+                          : datapath for datapath in dataset_paths}
 
         path_collect = defaultdict(list)
         for datapath in self.path_map.values():
@@ -159,8 +192,10 @@ class CodeSearchChunkPool():
         using_percent = self.using_percent
         _, available, *_ = psutil.virtual_memory()
         test_item = CodeSearchChunk(datapath, max_picked=estimate_count)
-        data_size = asizeof.asizeof(test_item) # TODO using pympler to estimate full size
-        logging.debug(f"size:{data_size}, len:{len(test_item)}, available:{available}")
+        # TODO using pympler to estimate full size
+        data_size = asizeof.asizeof(test_item)
+        logging.debug(
+            f"size:{data_size}, len:{len(test_item)}, available:{available}")
         actual_chunk_estimated = data_size / \
             len(test_item) * self.chunk_full_len
         return math.floor(available * using_percent / actual_chunk_estimated)
@@ -189,6 +224,20 @@ class LazyLoadCodeSearchChunk(dt.Dataset):
 
     def __len__(self):
         return self.path.precomputed_len or len(self._load())
+
+
+class CodeSearchDataset(dt.ConcatDataset):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    @ring.lru()
+    @property
+    def code_vocab(self):
+        vocab = Counter()
+        for chunk in self.datasets:
+            chunk: CodeSearchChunk
+            vocab.update(chunk.code_vocab)
+        return vocab
 
 
 class CodeSearchDatasetLoader():

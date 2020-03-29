@@ -6,3 +6,5 @@ psutil
 requests
 ring
 pympler
+attributedict
+pandas
