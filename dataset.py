@@ -77,6 +77,10 @@ class CodeSearchDataPath:
         self.chunk_num = int(self.chunk_num)
         self.precomputed_len = None
 
+    def load_counting(self):
+        with gzip.open(self.full_path, "r") as f:
+            return self, sum(1 for _ in f)
+
     ORDER = {
         "train": 1,
         "valid": 2,
@@ -107,13 +111,12 @@ class CodeSearchChunk(dt.Dataset):
         with gzip.open(self.path.full_path, "r") as f:
             self.data = [self.preprocess(line)
                          for _, line in zip(pick_indexes, f)]
-        logging.debug(f"loading vocab for {path}")
-        self.code_vocab = Counter(
-            word
-            for sample in self.data
-            for word in sample.code_tokens
-        )
-        
+        # logging.debug(f"loading vocab for {path}")
+        # self.code_vocab = Counter(
+        #     word
+        #     for sample in self.data
+        #     for word in sample.code_tokens
+        # )
 
     def preprocess(self, line):
         item_template = json.loads(line)
@@ -163,18 +166,27 @@ class CodeSearchChunkPool():
             for path in glob.glob("**/*.jsonl.gz", recursive=True)
         ]
         self.dataset_paths = dataset_paths
-        self.path_map = {(datapath.lang, datapath.split, datapath.chunk_num)
-                          : datapath for datapath in dataset_paths}
+        self.path_map = {(datapath.lang, datapath.split, datapath.chunk_num): datapath for datapath in dataset_paths}
 
         path_collect = defaultdict(list)
         for datapath in self.path_map.values():
             path_collect[(datapath.lang, datapath.split)].append(datapath)
 
         self.chunk_full_len = chunk_full_len
+        intermediate = []
         for _, path_list in path_collect.items():
             path_list.sort(key=lambda x: x.chunk_num)
             for path in path_list[:-1]:
                 path.precomputed_len = self.chunk_full_len
+            intermediate.append(path_list[-1])
+        
+        with multiprocessing.Pool() as pool:
+            for path, count in tqdm(
+                pool.imap_unordered(CodeSearchDataPath.load_counting, intermediate),
+                desc=f"counting intermediate chunks ({pool._processes}-proc)",
+                total=len(intermediate)
+            ):
+                path.precomputed_len = count
 
         self.using_percent = using_percent
         self.max_cache = max_chunks_in_memory or self.estimate_max_cache_count_by_system_memory()
@@ -199,6 +211,18 @@ class CodeSearchChunkPool():
         actual_chunk_estimated = data_size / \
             len(test_item) * self.chunk_full_len
         return math.floor(available * using_percent / actual_chunk_estimated)
+
+    def warm_up(self, path_lists, workers=None):
+        paths_stripped_end = (path for path, _ in zip(path_lists, range(self.max_cache)))
+        paths = [path for path in paths_stripped_end if not self.get_func.has(path)]
+        with multiprocessing.Pool(processes=workers) as pool:
+            for chunk in tqdm(
+                pool.imap_unordered(CodeSearchChunk, paths),
+                desc=f"loading chunks ({pool._processes}-proc)",
+                total=len(paths)
+            ):
+                chunk: CodeSearchChunk
+                self.get_func.set(chunk, chunk.path)
 
     def __getitem__(self, lang_split_chunk_triple):
         lang, split, chunk = lang_split_chunk_triple
@@ -282,17 +306,7 @@ class CodeSearchDatasetLoader():
             for path in needed_paths
         ]
         if len(needed_paths) <= self.pool.max_cache and not force_lazy:
-            pool_path_tuples_no_cache = [
-                path for path in needed_paths if self.pool.get_func.has(path)]
-            with multiprocessing.Pool() as pool:
-                for chunk in tqdm(
-                    pool.imap_unordered(
-                        CodeSearchChunk, pool_path_tuples_no_cache),
-                    desc=f"loading chunks ({pool._processes}-proc)",
-                    total=len(needed_paths)
-                ):
-                    chunk: CodeSearchChunk
-                    self.pool.get_func.set(chunk, chunk.path)
+            self.pool.warm_up(needed_paths)
         dataset = dt.ConcatDataset(lazy_dataset_list)
         return dataset
 

@@ -6,5 +6,6 @@ psutil
 requests
 ring
 pympler
-attributedict
+setupextras
+git+https://github.com/Ledenel/python-attributedict
 pandas
