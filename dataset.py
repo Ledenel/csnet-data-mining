@@ -21,17 +21,32 @@ import pkg_resources
 import sys
 import math
 import multiprocessing
+import logging
+from contextlib import contextmanager
 
 import requests
 import psutil
 import ring
-import logging
+
 
 from parsing.sitter_lang import get_parser
 # import methodtools
 
 from typing import Iterable
 from tree_sitter import TreeCursor, Node
+
+global_pool = None
+
+@contextmanager
+def global_pool_getter():
+    yield global_pool
+
+def get_pool(*args, **kwargs):
+    global global_pool
+    if global_pool is not None:
+        return global_pool_getter()
+    else:
+        return multiprocessing.Pool(*args, **kwargs)
 
 
 def node_cursor_iter(cursor) -> Iterable[TreeCursor]:
@@ -184,7 +199,7 @@ class CodeSearchChunkPool():
                 path.precomputed_len = self.chunk_full_len
             intermediate.append(path_list[-1])
         
-        with multiprocessing.Pool() as pool:
+        with get_pool() as pool:
             for path, count in tqdm(
                 pool.imap_unordered(CodeSearchDataPath.load_counting, intermediate),
                 desc=f"counting intermediate chunks ({pool._processes}-proc)",
@@ -219,7 +234,7 @@ class CodeSearchChunkPool():
     def warm_up(self, path_lists, workers=None):
         paths_stripped_end = (path for path, _ in zip(path_lists, range(self.max_cache)))
         paths = [path for path in paths_stripped_end if not self.get_func.has(path)]
-        with multiprocessing.Pool(processes=workers) as pool:
+        with get_pool(processes=workers) as pool:
             for chunk in tqdm(
                 pool.imap_unordered(CodeSearchChunk, paths),
                 desc=f"loading chunks ({pool._processes}-proc)",
