@@ -133,10 +133,14 @@ class CodeSearchChunk(dt.Dataset):
         for cur in node_cursor_iter(ast.walk()):
             cur: TreeCursor
             if not cur.node.children:
+                parent_cur = cur.copy()
+                parent_cur.goto_parent()
                 node = cur.node
                 node: Node
                 text_ctx.append(
-                    (cur.current_field_name(),
+                    (parent_cur.current_field_name(),
+                     parent_cur.node.type,
+                    cur.current_field_name(),
                      node.type,
                      item.code[node.start_byte:node.end_byte].decode('utf-8'),
                      )
