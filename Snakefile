@@ -11,8 +11,11 @@ import glob
 all_jsonls = glob.glob("**/*.jsonl.gz", recursive=True)
 
 jsonl_series = pd.Series(all_jsonls, name="path")
-jsonl_path_table = jsonl_series.apply(os.path.basename)\
-.str.extract("^([a-zA-Z]+)_([a-zA-Z]+)_([0-9]+)\\.jsonl\\.gz$").merge(jsonl_series, left_index=True, right_index=True)
+jsonl_path_table = jsonl_series.apply(os.path.basename).str.extract(
+    "^([a-zA-Z]+)_([a-zA-Z]+)_([0-9]+)\\.jsonl\\.gz$"
+).merge(
+    jsonl_series, left_index=True, right_index=True
+)
 
 rule all:
     input:
@@ -25,3 +28,12 @@ rule language_stat:
         "stats/field_context_l2_stats.csv"
     script:
         "stat.py"
+
+rule build_corpus:
+    input:
+        "data/**/{lang}_{split}_{chunk}.jsonl.gz"
+    output:
+        "corpus/{lang}_{split}_{chunk}.txt"
+    run:
+        import dataset
+        raise NotImplementedError
