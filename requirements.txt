@@ -11,3 +11,4 @@ git+https://github.com/Ledenel/python-attributedict
 pandas
 joblib
 snakemake
+seqtools
