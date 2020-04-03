@@ -9,8 +9,11 @@ from collections import defaultdict, namedtuple, Counter
 from pathlib import Path
 
 from tqdm import tqdm
+import pympler.muppy as mp
 from pympler import asizeof
 from attributedict.collections import AttributeDict
+import joblib
+from time import perf_counter
 
 import zipfile
 import gzip
@@ -81,6 +84,15 @@ DATA_DIR = pkg_resources.resource_filename(__name__, "data")
 #     _code_sample_fields
 # )
 
+def profilling(func):
+    def _profill(*args, **kwargs):
+        start = perf_counter()
+        result = func(*args, **kwargs)
+        end = perf_counter()
+        logging.debug(f"{func.__name__}-time: {end-start}s")
+        return result
+    
+    return _profill
 
 class CodeSearchDataPath:
     def __init__(self, path):
@@ -112,6 +124,38 @@ class CodeSearchDataPath:
         return self._tuple_key() < other._tuple_key()
 
 
+def sample_preprocess(line):
+    item_template = json.loads(line)
+    item = AttributeDict(item_template)
+
+    # convert code to bytes
+    item.code = item.code.encode("utf-8")
+
+    # get ast
+    parser = get_parser(item.language)
+    ast = parser.parse(item.code)
+
+    text_ctx = []
+    for cur in node_cursor_iter(ast.walk()):
+        cur: TreeCursor
+        if not cur.node.children:
+            parent_cur = cur.copy()
+            parent_cur.goto_parent()
+            node = cur.node
+            node: Node
+            text_ctx.append(
+                (parent_cur.current_field_name(),
+                    parent_cur.node.type,
+                cur.current_field_name(),
+                    node.type,
+                    item.code[node.start_byte:node.end_byte].decode('utf-8'),
+                    )
+            )
+
+    item.text_ctx = text_ctx
+
+    return item
+
 class CodeSearchChunk(dt.Dataset):
     def __init__(self, path, max_picked=None):
         super().__init__()
@@ -124,46 +168,33 @@ class CodeSearchChunk(dt.Dataset):
             pick_indexes = count(0)
         logging.debug(f"loading {path}")
         with gzip.open(self.path.full_path, "r") as f:
-            self.data = [self.preprocess(line)
-                         for _, line in zip(pick_indexes, f)]
+            raw = f.read()
+        raw = [x for x,_ in zip(raw.splitlines(), pick_indexes)]
+
+        @profilling
+        def multi():
+            with get_pool() as pool:
+                self.data = list(#tqdm(
+                    pool.imap(sample_preprocess, raw)
+                    # desc=f"parsing {self.path} ({pool._processes}-proc)",
+                    # total=len(raw),
+                    # )
+                )
+
+        @profilling
+        def serial():
+            self.data = [sample_preprocess(x) for x in raw]
+        
+        # multi()
+        serial()
         # logging.debug(f"loading vocab for {path}")
         # self.code_vocab = Counter(
         #     word
         #     for sample in self.data
         #     for word in sample.code_tokens
         # )
+        # self.data = []
 
-    def preprocess(self, line):
-        item_template = json.loads(line)
-        item = AttributeDict(item_template)
-
-        # convert code to bytes
-        item.code = item.code.encode("utf-8")
-
-        # get ast
-        parser = get_parser(item.language)
-        ast = parser.parse(item.code)
-
-        text_ctx = []
-        for cur in node_cursor_iter(ast.walk()):
-            cur: TreeCursor
-            if not cur.node.children:
-                parent_cur = cur.copy()
-                parent_cur.goto_parent()
-                node = cur.node
-                node: Node
-                text_ctx.append(
-                    (parent_cur.current_field_name(),
-                     parent_cur.node.type,
-                    cur.current_field_name(),
-                     node.type,
-                     item.code[node.start_byte:node.end_byte].decode('utf-8'),
-                     )
-                )
-
-        item.text_ctx = text_ctx
-
-        return item
 
     def __len__(self):
         return self.path.precomputed_len if self.path.precomputed_len is not None else len(self.data)

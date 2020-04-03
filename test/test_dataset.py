@@ -1,10 +1,11 @@
 from unittest import TestCase
 import dataset as ds
 
+import logging
+logging.basicConfig(level=logging.DEBUG)
+
 class DatasetTest(TestCase):
     def test_dataset_load(self):
-        import logging
-        logging.basicConfig(level=logging.DEBUG)
         loader = ds.CodeSearchDatasetLoader()
         samp = loader.get(language="ruby")[0]
         assert samp.language == "ruby"
