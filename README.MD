@@ -10,6 +10,6 @@ then snakemake is available.
 
 run `snakemake -j 4` to reproduce data mining.
 
-you'd like to change 4 to your prefered job count.
+you'd like to change 4 to your prefered concurrent job count (e.g. cpu counts).
 
 
