@@ -32,9 +32,9 @@ rule all:
         # "stats/field_context_l2_stats.csv",
         "data_cache/go_train_0.pkl",
 
-rule language_stat:
-    input:
-        jsonl_path_table["path"]
+rule extract_language_stat:
+    # input:
+    #     jsonl_path_table["path"]
     output:
         "stats/field_context_l2_stats.csv"
     script:
@@ -53,8 +53,31 @@ rule cache_dataset_to_pickle:
     input:
         "data/{language}/final/jsonl/{split}/{language}_{split}_{chunk}.jsonl.gz"
     output:
-        "data_cache/{language}_{split}_{chunk}.pkl"
+        out = "data_cache/{language}_{split}_{chunk}.pkl",
+        meta = "data_cache/{language}_{split}_{chunk}.meta.log",
+        len_stat_csv = "data_cache/{language}_{split}_{chunk}.len_stat.csv",
+        value_counts_csv = "data_cache/{language}_{split}_{chunk}.value_count_stat.csv",
     run:
         import pandas as pd
+        import contextlib as ctx
         df = pd.read_json(input[0], compression="gzip", lines=True)
-        df.to_pickle(output[0])
+        df.to_pickle(output.out)
+
+        def nan_when_exception(func):
+            def _nan_wrapper(x):
+                try:
+                    return func(x)
+                except Exception:
+                    return None
+            return _nan_wrapper
+
+        with open(output.meta, "w") as fmeta:
+            with ctx.redirect_stdout(fmeta):
+                print(f"len: {len(df)}")
+                print(f"columns: {df.columns}")
+        len_df = df.applymap(nan_when_exception(len)).dropna(axis="columns")
+        len_df.describe(percentiles=[0.05,0.2,0.5,0.8,0.95]).T.to_csv(output.len_stat_csv)
+
+        # value_count_df = df.apply(pd.Series.value_counts, axis="index")
+        # FIXME: don't value count unhashable type (like list) or value count on list values(via explode?)(str is iterable, no recursive count).
+        # value_count_df.to_csv(output.value_counts_csv)

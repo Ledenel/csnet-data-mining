@@ -27,7 +27,8 @@ if __name__ == "__main__":
                 row[f'top{i+1}_count'] = count
             attrib_list.append(row)
         
-        pd.DataFrame(tqdm(attrib_list)).to_csv("stats/field_context_l2_stats.csv")
+        pd.DataFrame(tqdm(attrib_list)).to_csv(output[0])
+    
     ds.global_pool = None
 
         
