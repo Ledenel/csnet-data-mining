@@ -348,3 +348,4 @@ data/*
 !data/.gitkeep
 *.zip
 .snakemake
+data_cache
