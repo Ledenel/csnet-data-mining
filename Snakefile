@@ -62,7 +62,7 @@ rule cache_dataset_chunk_to_pickle:
         df = pd.read_json(input[0], compression="gzip", lines=True)
         df.to_pickle(output.out)
 
-rule stat_of_dataset_chunk:
+rule stat_of_dataset:
     input:
         "data_cache/{dataset}.pkl"
     output:
