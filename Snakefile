@@ -18,7 +18,7 @@ jsonl_path_table = jsonl_series.apply(os.path.basename).str.extract(
     f"^({dataset_reg})\\.jsonl\\.gz$"
 )
 jsonl_path_table.columns = ["dataset_chunk", "language", "split", "chunk"]
-jsonl_path_table["chunk"] = jsonl_path_table["chunk"].astype(int)
+# jsonl_path_table["chunk"] = jsonl_path_table["chunk"].astype(int)
 jsonl_path_table["path"] = jsonl_series
 
 wildcard_constraints:
