@@ -33,6 +33,7 @@ rule all:
         # directory("stats/go_train_0")
         "stats/go_train_0.value_count_stat.csv",
         "stats/ruby_all.value_count_stat.csv",
+        "profill/go_train_0.seq_benchmark.csv",
 
 rule extract_language_stat:
     # input:
@@ -42,6 +43,15 @@ rule extract_language_stat:
     script:
         "stat.py"
 
+rule benchmark_seq_dataset:
+    input:
+        "data_cache/{dataset}.pkl"
+    output:
+        "profill/{dataset}.seq_benchmark.csv",
+        best="profill/{dataset}.seq_best.csv",
+    script:
+        "seq_benchmark.py"
+        
 rule build_corpus_raw:
     input:
         "data_cache/{dataset_chunk}.pkl"
@@ -51,7 +61,7 @@ rule build_corpus_raw:
     run:
         from dataset_seq import seq_all
         seq_dicts = seq_all(input[0])
-        
+
         raise NotImplementedError
 
 rule cache_dataset_chunk_to_pickle:

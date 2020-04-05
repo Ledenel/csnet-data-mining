@@ -6,6 +6,9 @@ from attributedict.collections import AttributeDict
 from tqdm import tqdm
 import multiprocessing
 
+input = snakemake.input
+output = snakemake.output
+
 if __name__ == "__main__":
     with multiprocessing.Pool() as pool:
         ds.global_pool = pool

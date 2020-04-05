@@ -15,18 +15,21 @@ def indentifier_split(token_list):
     token_identifier_parts = token_series.apply(split_identifier_into_parts)
     return token_identifier_parts
 
-def seq_all(input_path):
-    samples_df = pd.DataFrame.read_pickle(input_path)
-    codes = samples_df["code"]
-    docs = samples_df["docstring"]
+def seq_all(_input_path):
+    _sample_df = pd.read_pickle(_input_path)
+    codes = _sample_df["code"]
+    docs = _sample_df["docstring"]
     code_bytes = sq.smap(curry(str.encode)(encoding="utf-8"), codes)
-    languages = samples_df["language"]
+    languages = _sample_df["language"]
     parsers = sq.smap(get_parser, languages)
     asts = sq.smap(Parser.parse, parsers, code_bytes)
-    code_tokens = samples_df["code_tokens"]
-    doc_tokens = samples_df["docstring_tokens"]
+    code_tokens = _sample_df["code_tokens"]
+    doc_tokens = _sample_df["docstring_tokens"]
     code_split_identifiers = sq.smap(indentifier_split, code_tokens)
     code_tokens_with_identifier_split = sq.smap(pd.Series.explode, code_split_identifiers)
     doc_split_identifiers = sq.smap(indentifier_split, doc_tokens)
     doc_tokens_with_identifier_split = sq.smap(pd.Series.explode, doc_split_identifiers)
-    return locals()
+    _dict_all = locals()
+    dict_return =  {k:v for k,v in _dict_all.items() if not k.startswith("_")}
+    print(dict_return.keys())
+    return dict_return
