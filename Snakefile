@@ -42,13 +42,16 @@ rule extract_language_stat:
     script:
         "stat.py"
 
-rule build_corpus:
+rule build_corpus_raw:
     input:
         "data_cache/{dataset_chunk}.pkl"
     output:
-        "corpus/{dataset_chunk}.txt"
+        code="corpus/{dataset_chunk}_code.txt",
+        doc="corpus/{dataset_chunk}_doc.txt",
     run:
-        import dataset
+        from dataset_seq import seq_all
+        seq_dicts = seq_all(input[0])
+        
         raise NotImplementedError
 
 rule cache_dataset_chunk_to_pickle:
