@@ -96,10 +96,11 @@ checkpoint build_params_of_seq_benchmark:
 # dataset=go_train_0
 def _seq_benchmark_files_from_params(wildcards):
     import pickle
-    with checkpoints.build_params_of_seq_benchmark.get(dataset=wildcards.dataset).output[0].open() as f:
-        for _, item in pickle.load(f):
-            yield ("profill/temp/{dataset}/"
-            "{seq_name}--{seq_method}--{seq_cores}--{seq_nbuffer}.float.pkl").format(**wildcards)
+    #
+    with open(checkpoints.build_params_of_seq_benchmark.get(dataset=wildcards.dataset).output[0], mode="rb") as f:
+        for item in pickle.load(f):
+            yield ("profill/temp/{{dataset}}/"
+            "{seq_name}--{seq_method}--{seq_cores}--{seq_nbuffer}.float.pkl").format(**item).format(**wildcards)
 
 def seq_benchmark_files_from_params(wildcards):
     return list(_seq_benchmark_files_from_params(wildcards))
