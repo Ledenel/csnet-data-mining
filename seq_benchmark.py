@@ -11,22 +11,24 @@ output = snakemake.output
 
 def try_prefetch(seq, cores, method, buffered):
     try:
+        print(f"building {cores}-{method},fetch{buffered}")
         return sq.prefetch(seq, cores, method, buffered)
     except ValueError:
         return None
 
-cpu_cores = 2 ** np.arange(1, np.log2(os.cpu_count()) + 2).astype(int)
+cpu_cores = 2 ** np.arange(1, np.log2(os.cpu_count()) + 1).astype(int)
 np.append(cpu_cores, os.cpu_count())
 cpu_cores.sort()
 benchmarks = []
 for seq_name, seq in seq_all(input[0]).items():
+    print(f"building {seq_name}")
     benchmark_seqs = {"raw": seq}
     benchmark_seqs.update(
         {f"{cores}-{method}:fetch{nbuffer}": try_prefetch(seq, cores, method, nbuffer)
             for method, cores, nbuffer in product(
                  ["thread", "process", "sharedmem"],
                  np.unique(cpu_cores),
-                 [16,32,64,128,256,512,1024],
+                 [16,256],
             )}
     )
     benchmark_timing = {}
