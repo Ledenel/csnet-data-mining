@@ -55,7 +55,7 @@ checkpoint build_params_of_seq_benchmark:
         cpu_cores = 2 ** np.arange(1, np.log2(os.cpu_count()) + 1).astype(int)
         np.append(cpu_cores, os.cpu_count())
         cpu_cores.sort()
-        seq_cpu_cores = np.unique(cpu_cores())
+        seq_cpu_cores = np.unique(cpu_cores)
 
         seq_method = ["thread", "process", "sharedmem"]
         seq_nbuffer = [16,256]
@@ -67,7 +67,7 @@ checkpoint build_params_of_seq_benchmark:
 
         param_combinations = product(
             seq_name,
-            seq_cores,
+            cpu_cores,
             seq_method,
             seq_nbuffer,
         )
@@ -83,7 +83,7 @@ checkpoint build_params_of_seq_benchmark:
             seq_nbuffer in param_combinations
         )
         import pickle
-        with open(output[0], "w") as f:
+        with open(output[0], "wb") as f:
             pickle.dump(param_combination_dicts, f)
 
 
