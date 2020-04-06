@@ -27,6 +27,8 @@ def try_prefetch(seq, cores, method, buffered):
 #FIXME: add "raw" option in checkpoint build_params_of_seq_benchmark.
 benchmark_seqs = {"raw": seq}
 benchmark_seqs.update(
+#TODO clean up, take create_prefetch into perf account.
+#TODO using snakemake-provided benchmark option.
 try:
     start = perf_counter()
     for _ in seq:
