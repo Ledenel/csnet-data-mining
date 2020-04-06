@@ -43,14 +43,114 @@ rule extract_language_stat:
     script:
         "stat.py"
 
-rule benchmark_seq_dataset:
+checkpoint build_params_of_seq_benchmark:
     input:
         "data_cache/{dataset}.pkl"
     output:
+        "data_cache/{dataset}.seq_benchmark.params.pkl"
+    run:
+        import pandas as pd
+        import numpy as np
+        dataset_df = pd.read_pickle(input[0])
+        cpu_cores = 2 ** np.arange(1, np.log2(os.cpu_count()) + 1).astype(int)
+        np.append(cpu_cores, os.cpu_count())
+        cpu_cores.sort()
+        seq_cpu_cores = np.unique(cpu_cores())
+
+        seq_method = ["thread", "process", "sharedmem"]
+        seq_nbuffer = [16,256]
+
+        from dataset_seq import seq_all
+        seq_name = seq_all(input[0]).keys()
+
+        from itertools import product
+
+        param_combinations = product(
+            seq_name,
+            seq_cores,
+            seq_method,
+            seq_nbuffer,
+        )
+
+        param_combination_dicts = list({
+            'seq_name': seq_name,
+            'seq_cores': seq_cores,
+            'seq_method': seq_method,
+            'seq_nbuffer': seq_nbuffer,
+        } for seq_name,
+            seq_cores,
+            seq_method,
+            seq_nbuffer in param_combinations
+        )
+        import pickle
+        with open(output[0], "w") as f:
+            pickle.dump(param_combination_dicts, f)
+
+
+
+#FIXME: bulid list wrapper (is it necessary?)
+#FIXME:
+# ERROR:snakemake.logging:InputFunctionException in line 127 of /mnt/d/workspace/playground/csnet-data-mining/Snakefile:
+# RecursionError: maximum recursion depth exceeded
+# Wildcards:
+# dataset=go_train_0
+def _seq_benchmark_files_from_params(wildcards):
+    import pickle
+    print(f"entering with {wildcards}")
+    with checkpoints.build_params_of_seq_benchmark.get(dataset=wildcards.dataset).output[0].open() as f:
+        for _, item in pickle.load(f):
+            yield ("profill/temp/{dataset}/"
+            "{seq_name}--{seq_method}--{seq_cores}--{seq_nbuffer}.float.pkl").format(**wildcards)
+
+def seq_benchmark_files_from_params(wildcards):
+    return list(seq_benchmark_files_from_params(wildcards))
+
+#TODO: add resources limit to benchmark: always use all resources to block anything else.
+
+rule benchmark_one:
+    input:
+        dataset = "data_cache/{dataset}.pkl",
+    output:
+        "profill/temp/{dataset}/{seq_name}--{seq_method}--{seq_cores}--{seq_nbuffer}.float.pkl"
+    script:
+        "seq_benchmark_one.py"
+
+def pickle_load(file_path):
+    import pickle
+    with open(file_path, "rb") as f:
+        return pickle.load(f)
+
+# FIXME: ERROR:snakemake.logging:InputFunctionException in line 127 of /mnt/d/workspace/playground/csnet-data-mining/Snakefile:
+# RecursionError: maximum recursion depth exceeded
+# Wildcards:
+# dataset=go_train_0
+rule benchmark_seq_merge:
+    input:
+        seq_benchmark_files_from_params,
+        config="data_cache/{dataset}.seq_benchmark.params.pkl",
+    output:
         "profill/{dataset}.seq_benchmark.csv",
         best="profill/{dataset}.seq_best.csv",
-    script:
-        "seq_benchmark.py"
+    run:
+        import pickle
+        import pandas as pd
+        from collections import defaultdict
+        merged_dict = defaultdict(dict)
+        for benchmark_path, config_param_dict in zip(input[:-1], pickle_load(input.config)):
+            param_cols = [f"{param}-{value}"
+                 for param, value in config_param_dict.items()]
+            for col in param_cols:
+                merged_dict[file_path][col] = pickle_load(file_path)
+        
+        result = pd.DataFrame(merged_dict)
+        result.to_csv(output[0])
+        result_best_option = result.T.apply(np.argmin).apply(lambda x: result.columns[x])
+        result_best_value = result.T.min()
+        pd.DataFrame({
+            "option": result_best_option,
+            "value": result_best_value,
+        }).to_csv(output.best)
+
         
 rule build_corpus_raw:
     input:
@@ -75,12 +175,26 @@ rule cache_dataset_chunk_to_pickle:
         df = pd.read_json(input[0], compression="gzip", lines=True)
         df.to_pickle(output.out)
 
+rule copy_test_column_from_ruby_test_1:
+    input:
+        "stats/ruby_test_1.columns.pkl"
+    output:
+        "stats/column.txt"
+    run:
+        import pandas as pd
+        with open(output[0], "w") as f:
+            for item in pd.read_pickle(input[0]):
+                f.write(f"{item}\n")
+        
+
+
 rule stat_of_dataset:
     input:
         "data_cache/{dataset}.pkl"
     output:
         # directory("stats/{dataset}"),
         meta = "stats/{dataset}.meta.log",
+        columns = "stats/{dataset}.columns.pkl",
         len_stat_csv = "stats/{dataset}.len_stat.csv",
         value_counts_csv = "stats/{dataset}.value_count_stat.csv", 
     run:
@@ -100,6 +214,7 @@ rule stat_of_dataset:
             with ctx.redirect_stdout(fmeta):
                 print(f"len: {len(df)}")
                 print(f"columns: {df.columns}")
+        pd.to_pickle(df.columns, output.columns)
         len_df = df.applymap(nan_when_exception(len)).dropna(axis="columns")
         len_df.describe(percentiles=[0.05,0.2,0.5,0.8,0.95]).T.to_csv(output.len_stat_csv)
 
