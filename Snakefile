@@ -96,14 +96,13 @@ checkpoint build_params_of_seq_benchmark:
 # dataset=go_train_0
 def _seq_benchmark_files_from_params(wildcards):
     import pickle
-    print(f"entering with {wildcards}")
     with checkpoints.build_params_of_seq_benchmark.get(dataset=wildcards.dataset).output[0].open() as f:
         for _, item in pickle.load(f):
             yield ("profill/temp/{dataset}/"
             "{seq_name}--{seq_method}--{seq_cores}--{seq_nbuffer}.float.pkl").format(**wildcards)
 
 def seq_benchmark_files_from_params(wildcards):
-    return list(seq_benchmark_files_from_params(wildcards))
+    return list(_seq_benchmark_files_from_params(wildcards))
 
 #TODO: add resources limit to benchmark: always use all resources to block anything else.
 
