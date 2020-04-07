@@ -63,13 +63,19 @@ checkpoint build_params_of_seq_benchmark:
         from dataset_seq import seq_all
         seq_name = seq_all(input[0]).keys()
 
-        from itertools import product
+        from itertools import product, chain
 
-        param_combinations = product(
+        param_combinations = \
+        product(
             seq_name,
-            cpu_cores,
-            seq_method,
-            seq_nbuffer,
+            chain(
+                [(0, thread, 0)],
+                product(
+                    cpu_cores,
+                    seq_method,
+                    seq_nbuffer,
+                )
+            )
         )
 
         param_combination_dicts = list({
@@ -78,9 +84,9 @@ checkpoint build_params_of_seq_benchmark:
             'seq_method': seq_method,
             'seq_nbuffer': seq_nbuffer,
         } for seq_name,
-            seq_cores,
+            (seq_cores,
             seq_method,
-            seq_nbuffer in param_combinations
+            seq_nbuffer) in param_combinations
         )
         import pickle
         with open(output[0], "wb") as f:

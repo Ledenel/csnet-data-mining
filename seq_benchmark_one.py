@@ -24,16 +24,20 @@ def try_prefetch(seq, cores, method, buffered):
     except ValueError:
         return None
 
-#FIXME: add "raw" option in checkpoint build_params_of_seq_benchmark.
-benchmark_seqs = {"raw": seq}
-benchmark_seqs.update(
+#add "raw" option in checkpoint build_params_of_seq_benchmark.
 #TODO clean up, take create_prefetch into perf account.
 #TODO using snakemake-provided benchmark option.
+print(f"extracting {output[0]}")
+seq_origin = seq_all(input[0])[wildcards.seq_name]
 try:
     start = perf_counter()
+    seq = try_prefetch(seq_origin, int(wildcards.seq_cores), wildcards.seq_method, int(wildcards.seq_nbuffer))
     for _ in seq:
         pass
     end = perf_counter()
-    benchmark_timing[name] = end - start
+    value = end - start
 except Exception:
-    benchmark_timing[name] = None
+    value = None 
+import pickle
+with open(output[0], "wb") as f_pickle:
+    pickle.dump(value, f_pickle)
