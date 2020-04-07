@@ -47,7 +47,7 @@ checkpoint build_params_of_seq_benchmark:
     input:
         "data_cache/{dataset}.pkl"
     output:
-        "data_cache/{dataset}.seq_benchmark.params.pkl"
+        "profill/{dataset}.seq_benchmark.params.pkl"
     run:
         import pandas as pd
         import numpy as np
@@ -69,7 +69,7 @@ checkpoint build_params_of_seq_benchmark:
         product(
             seq_name,
             chain(
-                [(0, thread, 0)],
+                [(0, "thread", 0)],
                 product(
                     cpu_cores,
                     seq_method,
@@ -133,7 +133,7 @@ def pickle_load(file_path):
 rule benchmark_seq_merge:
     input:
         seq_benchmark_files_from_params,
-        config="data_cache/{dataset}.seq_benchmark.params.pkl",
+        config="profill/{dataset}.seq_benchmark.params.pkl",
     output:
         "profill/{dataset}.seq_benchmark.csv",
         best="profill/{dataset}.seq_best.csv",
