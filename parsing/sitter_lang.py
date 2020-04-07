@@ -6,8 +6,10 @@ import subprocess
 import pkg_resources
 import re
 
+import logging
+
 so_path = pkg_resources.resource_filename(__name__, "build/my-languages.so")
-print("language_so_path:", so_path)
+logging.info("language_so_path:", so_path)
 
 @lru_cache(10)
 def get_parser(name):
@@ -42,7 +44,4 @@ def get_available_languages():
 def get_language(name):
     return Language(so_path,name)
 
-
-
-
-print(f"available {get_available_languages()}")
+logging.info(f"available {get_available_languages()}")
