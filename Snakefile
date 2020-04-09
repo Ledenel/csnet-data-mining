@@ -58,7 +58,7 @@ checkpoint build_params_of_seq_benchmark:
         seq_cpu_cores = np.unique(cpu_cores)
 
         seq_method = ["thread", "process", "sharedmem"]
-        seq_nbuffer = [16,256]
+        seq_nbuffer = [16,64]
 
         from dataset_seq import seq_all
         seq_name = seq_all(input[0]).keys()
