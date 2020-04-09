@@ -204,8 +204,11 @@ rule train_tokenizer:
         )
 
         import os
-        os.makedirs(output[0])
-        tokenizer.save(output[0])
+        tokenizer.save(os.path.dirname(output[0]))
+
+rule evaluate_model:
+    input:
+
 
 rule cache_dataset_chunk_to_pickle:
     input:
