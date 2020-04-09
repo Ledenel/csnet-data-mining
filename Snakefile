@@ -36,6 +36,7 @@ rule all:
         "profill/go_train_0.seq_best.csv",
         "corpus/go_train_0.doc.txt",
         "corpus/go_train_0.code.txt",
+        "corpus/tokenizer/go_train_0.code-size20000/vocab.txt",
 
 rule extract_language_stat:
     # input:
@@ -181,6 +182,31 @@ rule build_corpus_raw:
                 f.write(" ".join(sample))
                 f.write("\n")
 
+rule train_tokenizer:
+    input:
+        "corpus/{dataset}.{corpus_type}.txt",
+    output:
+        "corpus/tokenizer/{dataset}.{corpus_type}-size{vocab}/vocab.txt",
+    run:
+        from tokenizers import BertWordPieceTokenizer
+        tokenizer = BertWordPieceTokenizer(
+            strip_accents=True, lowercase=True,
+        )
+
+        trainer = tokenizer.train(
+            input,
+            vocab_size=int(wildcards.vocab),
+            min_frequency=2,
+            show_progress=True,
+            special_tokens=["[PAD]", "[UNK]", "[CLS]", "[SEP]", "[MASK]"],
+            limit_alphabet=1000,
+            wordpieces_prefix="##",
+        )
+
+        import os
+        os.makedirs(output[0])
+        tokenizer.save(output[0])
+
 rule cache_dataset_chunk_to_pickle:
     input:
         "data/{language}/final/jsonl/{split}/{language}_{split}_{chunk}.jsonl.gz"
@@ -281,3 +307,14 @@ rule merge_language_dataset:
         import pandas as pd
         merged = pd.concat([pd.read_pickle(path) for path in input])
         merged.to_pickle(output[0])
+
+rule merge_language_dataset_split_part:
+    input:
+        dataset_format_paths(["dataset_chunk"], "data_cache/{dataset_chunk}.pkl"),
+    output:
+        "data_cache/{language}_{split}_all.pkl"
+    run:
+        import pandas as pd
+        merged = pd.concat([pd.read_pickle(path) for path in input])
+        merged.to_pickle(output[0])
+
