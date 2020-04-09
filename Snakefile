@@ -33,7 +33,7 @@ rule all:
         # directory("stats/go_train_0")
         "stats/go_train_0.value_count_stat.csv",
         "stats/ruby_all.value_count_stat.csv",
-        "profill/go_train_0.seq_benchmark.csv",
+        "profill/go_train_0.seq_best.csv",
 
 rule extract_language_stat:
     # input:
@@ -130,32 +130,54 @@ def pickle_load(file_path):
 # RecursionError: maximum recursion depth exceeded
 # Wildcards:
 # dataset=go_train_0
-rule benchmark_seq_merge:
+rule extract_benchmark_seq:
     input:
         seq_benchmark_files_from_params,
         config="profill/{dataset}.seq_benchmark.params.pkl",
     output:
         "profill/{dataset}.seq_benchmark.csv",
-        best="profill/{dataset}.seq_best.csv",
+        
     run:
         import pickle
         import pandas as pd
+        import numpy as np
         from collections import defaultdict
-        merged_dict = defaultdict(dict)
+        merged_record = list()
         for benchmark_path, config_param_dict in zip(input[:-1], pickle_load(input.config)):
             param_cols = [f"{param}-{value}"
                  for param, value in config_param_dict.items()]
-            for col in param_cols:
-                merged_dict[file_path][col] = pickle_load(file_path)
-        
-        result = pd.DataFrame(merged_dict)
+            sub_record = {col:value for col, value in config_param_dict.items()}
+            sub_record["value"] = pickle_load(benchmark_path)
+            merged_record.append(sub_record)
+
+        result = pd.DataFrame(merged_record)
         result.to_csv(output[0])
+        # result_best_option = result.T.apply(np.argmin).apply(lambda x: result.columns[x])
+        # result_best_value = result.T.min()
+        # pd.DataFrame({
+        #     "option": result_best_option,
+        #     "value": result_best_value,
+        # }).to_csv(output.best)
+
+rule pick_benchmark_seq_best:
+    input:
+        "profill/{dataset}.seq_benchmark.csv"
+    output:
+        best="profill/{dataset}.seq_best.csv"
+    run:
+        import pandas as pd
+        import numpy as np
+        result = pd.read_csv(input[0])
+        print(result.columns)
+        result["params"] = result["seq_cores"].astype(str) + "-" + result["seq_method"].astype(str) + "-" + result["seq_nbuffer"].astype(str)
+        result = result.pivot(index="seq_name", columns="params", values=["value"])
         result_best_option = result.T.apply(np.argmin).apply(lambda x: result.columns[x])
         result_best_value = result.T.min()
         pd.DataFrame({
             "option": result_best_option,
             "value": result_best_value,
         }).to_csv(output.best)
+        # result.to_csv(output[0])
 
         
 rule build_corpus_raw:
