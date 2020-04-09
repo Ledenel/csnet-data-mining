@@ -34,6 +34,8 @@ rule all:
         "stats/go_train_0.value_count_stat.csv",
         "stats/ruby_all.value_count_stat.csv",
         "profill/go_train_0.seq_best.csv",
+        "corpus/go_train_0.doc.txt",
+        "corpus/go_train_0.code.txt",
 
 rule extract_language_stat:
     # input:
@@ -95,11 +97,6 @@ checkpoint build_params_of_seq_benchmark:
 
 
 #FIXME: bulid list wrapper (is it necessary?)
-#FIXME:
-# ERROR:snakemake.logging:InputFunctionException in line 127 of /mnt/d/workspace/playground/csnet-data-mining/Snakefile:
-# RecursionError: maximum recursion depth exceeded
-# Wildcards:
-# dataset=go_train_0
 def _seq_benchmark_files_from_params(wildcards):
     import pickle
     #
@@ -126,10 +123,6 @@ def pickle_load(file_path):
     with open(file_path, "rb") as f:
         return pickle.load(f)
 
-# FIXME: ERROR:snakemake.logging:InputFunctionException in line 127 of /mnt/d/workspace/playground/csnet-data-mining/Snakefile:
-# RecursionError: maximum recursion depth exceeded
-# Wildcards:
-# dataset=go_train_0
 rule extract_benchmark_seq:
     input:
         seq_benchmark_files_from_params,
@@ -152,12 +145,6 @@ rule extract_benchmark_seq:
 
         result = pd.DataFrame(merged_record)
         result.to_csv(output[0])
-        # result_best_option = result.T.apply(np.argmin).apply(lambda x: result.columns[x])
-        # result_best_value = result.T.min()
-        # pd.DataFrame({
-        #     "option": result_best_option,
-        #     "value": result_best_value,
-        # }).to_csv(output.best)
 
 rule pick_benchmark_seq_best:
     input:
@@ -182,15 +169,17 @@ rule pick_benchmark_seq_best:
         
 rule build_corpus_raw:
     input:
-        "data_cache/{dataset_chunk}.pkl"
+        "data_cache/{dataset}.pkl"
     output:
-        code="corpus/{dataset_chunk}_code.txt",
-        doc="corpus/{dataset_chunk}_doc.txt",
+        "corpus/{dataset}.{corpus_type,(code|doc)}.txt",
     run:
         from dataset_seq import seq_all
         seq_dicts = seq_all(input[0])
-
-        raise NotImplementedError
+        corpus_split = seq_dicts[f"{wildcards.corpus_type}_tokens_with_identifier_split"]
+        with open(output[0], "w") as f:
+            for sample in corpus_split:
+                f.write(" ".join(sample))
+                f.write("\n")
 
 rule cache_dataset_chunk_to_pickle:
     input:
