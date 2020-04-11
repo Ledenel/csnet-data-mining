@@ -36,7 +36,9 @@ rule all:
         "profill/go_train_0.seq_best.csv",
         "corpus/go_train_0.doc.txt",
         "corpus/go_train_0.code.txt",
-        "corpus/tokenizer/go_train_0.code-size20000/vocab.txt",
+        "corpus/tokenizer/go_train_0.code-size=20000/vocab.txt",
+        "bert_scratch_go_0.done"
+        # directory("model_param/pretrain/go_train_0-tokenizer:size=20000"),
 
 rule extract_language_stat:
     # input:
@@ -182,11 +184,28 @@ rule build_corpus_raw:
                 f.write(" ".join(sample))
                 f.write("\n")
 
+rule build_counter_on_dataset:
+    input:
+        "data_cache/{dataset}.pkl"
+    output:
+        "corpus/{dataset}.{corpus_type,(code|doc)}.counter.json",
+    run:
+        from dataset_seq import seq_all
+        from collections import Counter
+        seq_dicts = seq_all(input[0])
+        corpus_split = seq_dicts[f"{wildcards.corpus_type}_tokens_with_identifier_split"]
+        raise NotImplementedError
+        # for item in 
+        # with open(output[0], "w") as f:
+        #     for sample in corpus_split:
+        #         f.write(" ".join(sample))
+        #         f.write("\n")
+
 rule train_tokenizer:
     input:
         "corpus/{dataset}.{corpus_type}.txt",
     output:
-        "corpus/tokenizer/{dataset}.{corpus_type}-size{vocab}/vocab.txt",
+        "corpus/tokenizer/{dataset}.{corpus_type}-size={vocab}/vocab.txt",
     run:
         from tokenizers import BertWordPieceTokenizer
         tokenizer = BertWordPieceTokenizer(
@@ -206,9 +225,28 @@ rule train_tokenizer:
         import os
         tokenizer.save(os.path.dirname(output[0]))
 
-rule evaluate_model:
+rule pretrain_bert:
     input:
+        train = "data_cache/{lang}_train_{extra}.pkl",
+        doc_tokenizer = "corpus/tokenizer/{lang}_train_{extra}.doc-{config}/vocab.txt",
+        code_tokenizer = "corpus/tokenizer/{lang}_train_{extra}.code-{config}/vocab.txt",
+    output:
+        model_ckpt = directory("model_param/pretrain/{lang}_train_{extra}-tokenizer:{config}"),
+    run:
+        from tokenizers import BertWordPieceTokenizer
+        from transformers import BertModel
+        
+        raise NotImplementedError
 
+rule train_eval_bert_scratch:
+    input:
+        train_data = "data_cache/{lang}_train_{extra}.pkl",
+        valid_data = "data_cache/{lang}_valid_{extra}.pkl",
+        test_data = "data_cache/{lang}_test_{extra}.pkl",
+    output:
+        done = touch("bert_scratch_{lang}_{extra}.done")
+    script:
+        "train.py"
 
 rule cache_dataset_chunk_to_pickle:
     input:

@@ -15,6 +15,10 @@ def indentifier_split(token_list):
     token_identifier_parts = token_series.apply(split_identifier_into_parts)
     return token_identifier_parts
 
+def randomize_mask(seq):
+    #ref: https://github.com/huggingface/transformers/blob/master/examples/run_language_modeling.py#L179
+    raise NotImplementedError
+
 def seq_all(_input_path):
     _sample_df = pd.read_pickle(_input_path)
     codes = _sample_df["code"]
@@ -30,6 +34,6 @@ def seq_all(_input_path):
     doc_split_identifiers = sq.smap(indentifier_split, doc_tokens)
     doc_tokens_with_identifier_split = sq.smap(pd.Series.explode, doc_split_identifiers)
     _dict_all = locals()
-    dict_return =  {k:v for k,v in _dict_all.items() if not k.startswith("_")}
-    print(dict_return.keys())
-    return dict_return
+    _dict_return =  {k:v for k,v in _dict_all.items() if not k.startswith("_")}
+    # print(_dict_return.keys())
+    return _dict_return
