@@ -36,6 +36,7 @@ def tokenize(token_counter, token_list):
     counter_map = get_counter_map(token_counter)
     return torch.tensor([counter_map.get(word, default=counter_map["[UNK]"]) for word in token_list])
 
+@curry
 def pad_to_1d(token_counter, size, tensor):
     counter_map = get_counter_map(token_counter)
     if size <= len(tensor):
@@ -49,11 +50,18 @@ doc_token_counter = count_all(doc_tokens)
 class CodeQuerySoftmaxBertModel(nn.Module):
     def __init__(self, code_token_counter, query_token_counter):
         self.code_token_counter = code_token_counter
-        self.code_config = transformers.BertConfig(vocab_size=len(code_token_counter))
+        get_counter_map(code_token_counter)
+        self.code_config = transformers.BertConfig(
+            vocab_size=len(code_token_counter),
+            pad_token_id=get_counter_map(code_token_counter)["[PAD]"]
+        )
         self.code_model = transformers.BertModel(self.code_config)
 
         self.query_token_counter = query_token_counter
-        self.query_config = transformers.BertConfig(vocab_size=len(code_token_counter))
+        self.query_config = transformers.BertConfig(
+            vocab_size=len(query_token_counter),
+            pad_token_id=get_counter_map(query_token_counter)["[PAD]"]
+        )
         self.query_model = transformers.BertModel(self.query_config)
     
     def forward(query_batch, code_batch):
@@ -74,19 +82,31 @@ class CodeQuerySoftmaxBertModel(nn.Module):
 
 #train, test and evaluation.
 
-ds = seq_all(input.train_data)
+ds_train = seq_all(input.train_data)
 
-code_tokens = ds["code_tokens_with_identifier_split"]
-doc_tokens = ds["doc_tokens_with_identifier_split"]
-#TODO: batch and pad dataset.
+code_tokens = ds_train["code_tokens_with_identifier_split"]
+doc_tokens = ds_train["doc_tokens_with_identifier_split"]
 
+code_token_counter = count_all(code_tokens)
+doc_token_counter = count_all(doc_token_counter)
 
+import seqtools as sq
 
-model = CodeQuerySoftmaxBertModel(xxx, xxx)
+code_tokenized = sq.smap(tokenize(code_token_counter), code_tokens)
+doc_tokenized = sq.smap(tokenize(doc_token_counter), doc_tokens)
+
+code_pad = sq.smap(pad_to_1d(code_token_counter, 200), code_tokenized)
+doc_pad = sq.smap(pad_to_1d(doc_token_counter, 200), doc_tokenized)
+
+#batch and pad dataset.
+
+model = CodeQuerySoftmaxBertModel(code_token_counter, doc_token_counter)
 
 opt = torch.optim.Adam(model.parameters())
 
 from tqdm import trange, tqdm
+
+train_data = sq.collate(doc_pad, code_pad)
 
 for epoch in trange(50):
     for query_batch, code_batch in tqdm(torch.utils.data.DataLoader(train_data)):
@@ -101,7 +121,11 @@ for epoch in trange(50):
 
 #TODO: add test via test-dataset.
         
-        
+test_code_pad, test_doc_pad = ... # previous 
+
+for query_batch, code_batch in tqdm(torch.utils.data.DataLoader(test_data)):
+    query_embeddings, code_embeddings, losses, reiprocal_rank, mrr = model(query_batch, code_batch)
+    # use mrr for testing (validation).
 
 
 
