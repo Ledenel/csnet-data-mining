@@ -1,5 +1,5 @@
 {
-    "python.pythonPath": "/mnt/d/Cache/WSL/conda/envs/csnet-min/bin/python",
+    "python.pythonPath": "/usr/local/miniconda3/envs/csnetmin/bin/python",
     "python.testing.unittestArgs": [
         "-v",
         "-s",

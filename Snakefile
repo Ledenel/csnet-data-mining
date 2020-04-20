@@ -240,13 +240,13 @@ rule pretrain_bert:
 
 rule train_eval_bert_scratch:
     input:
-        train_data = "data_cache/{lang}_train_{extra}.pkl",
-        valid_data = "data_cache/{lang}_valid_{extra}.pkl",
-        test_data = "data_cache/{lang}_test_{extra}.pkl",
+        train = "data_cache/{lang}_train_{extra}.pkl",
+        valid = "data_cache/{lang}_valid_{extra}.pkl",
+        test = "data_cache/{lang}_test_{extra}.pkl",
     output:
         done = touch("bert_scratch_{lang}_{extra}.done")
     script:
-        "train.py"
+        "roberta_eval.py"
 
 rule cache_dataset_chunk_to_pickle:
     input:

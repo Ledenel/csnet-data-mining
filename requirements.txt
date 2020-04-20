@@ -16,3 +16,4 @@ yummycurry
 dpu_utils
 wandb
 transformers
+pytorch-lightning
