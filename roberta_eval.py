@@ -104,5 +104,6 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
 
 if __name__ == "__main__":
     model = RobertaCodeQuerySoftmax(snakemake.input)
-    trainer = pl.Trainer()
+    trainer = pl.Trainer(gpus=0)
     trainer.test(model)
+    
