@@ -18,7 +18,7 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
     def forward(self, *args, **kwargs):
         return self.model(*args, **kwargs)
 
-    def _load(self, file_path, batch_size=3):
+    def _load(self, file_path, batch_size=1000):
         seqs = seq_all(file_path)
         codes, docs = seqs["codes"], seqs["docs"]
         return DataLoader(sq.collate([codes, docs]), batch_size=batch_size)
@@ -69,9 +69,7 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
         _, query_embeddings = self(**query)
 
         each_code_similarity_per_query = query_embeddings @ code_embeddings.T # dot product for each
-        log_softmaxes = nn.LogSoftmax(1)(each_code_similarity_per_query)
-        losses = F.nll_loss(log_softmaxes, target=torch.arange(len(code_embeddings)), reduce="mean")
-
+        
         # compute mrr
         correct_scores = torch.diag(each_code_similarity_per_query)
         scores_bigger_mask = each_code_similarity_per_query >= correct_scores.unsqueeze(-1)
