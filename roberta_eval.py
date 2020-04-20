@@ -76,8 +76,8 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
             code_embeddings.append(code_tiny_embeddings)
             query_embeddings.append(query_tiny_embeddings)
         
-        code_embeddings = torch.stack(code_embeddings)
-        query_embeddings = torch.stack(query_embeddings)
+        code_embeddings = torch.cat(code_embeddings)
+        query_embeddings = torch.cat(query_embeddings)
 
         # for tiny_code, tiny_query in DataLoader()
 
@@ -104,6 +104,6 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
 
 if __name__ == "__main__":
     model = RobertaCodeQuerySoftmax(snakemake.input)
-    trainer = pl.Trainer(gpus=0)
+    trainer = pl.Trainer(gpus=0, fast_dev_run=False)
     trainer.test(model)
     
