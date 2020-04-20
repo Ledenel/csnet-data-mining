@@ -6,7 +6,8 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 import seqtools as sq
-
+from torch.utils.data.dataloader import default_collate
+from tqdm import tqdm
 
 class RobertaCodeQuerySoftmax(pl.LightningModule):
     def __init__(self, inputs):
@@ -27,7 +28,7 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
         return self._load(self.datapath.test)
 
     def train_dataloader(self):
-        return self._load(self.datapath.train)
+        return self._load(self.datapath.train, batch_size=200)
     
     def training_step(self):
         code, query = batch
@@ -60,13 +61,30 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
 
     def test_step(self, batch, batch_idx):
         code, query = batch
-        code = self._tokenize(code)
-        query = self._tokenize(query)
         
+        code_embeddings = []
+        query_embeddings = []
+
+        for tiny_code, tiny_query in tqdm(sq.batch(sq.collate([code, query]), k=50, collate_fn=default_collate)):
+            
+            code = self._tokenize(tiny_code)
+            query = self._tokenize(tiny_query)
+            
+            _, code_tiny_embeddings = self(**code) 
+            _, query_tiny_embeddings = self(**query)
+
+            code_embeddings.append(code_tiny_embeddings)
+            query_embeddings.append(query_tiny_embeddings)
+        
+        code_embeddings = torch.stack(code_embeddings)
+        query_embeddings = torch.stack(query_embeddings)
+
+        # for tiny_code, tiny_query in DataLoader()
+
         # print(f"code:{code}")
 
-        _, code_embeddings = self(**code)
-        _, query_embeddings = self(**query)
+        # _, code_embeddings = self(**code) # FIXME: no more than 12582912000 (in batch 1000, 12GB)
+        # _, query_embeddings = self(**query)
 
         each_code_similarity_per_query = query_embeddings @ code_embeddings.T # dot product for each
         
@@ -78,6 +96,9 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
         mrr = reiprocal_rank.mean()
         
         return mrr
+    
+    def test_epoch_end(self, outputs):
+        return {'test_loss': torch.stack(outputs).mean()}
 
 
 
