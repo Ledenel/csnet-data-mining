@@ -50,7 +50,7 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
         return torch.optim.Adam(self.parameters())
 
     def _tokenize(self, inputs, pad_to_max_length=True):
-        return self.tokenizer.batch_encode_plus(
+        return self.tokenizer.batch_encode_plus( #FIXME: using encode_plus for single text tokenization (in seqtools.smap).
             inputs,
             add_special_tokens=True,
             return_tensors="pt",
@@ -67,6 +67,7 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
 
         for tiny_code, tiny_query in tqdm(sq.batch(sq.collate([code, query]), k=50, collate_fn=default_collate)):
             
+            #FIXME: move tokenize items into prepare_data / test_dataloader, let batch tensors stay on cuda.
             code = self._tokenize(tiny_code)
             query = self._tokenize(tiny_query)
             
