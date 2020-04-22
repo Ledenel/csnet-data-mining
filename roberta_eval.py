@@ -93,7 +93,7 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
         code_embeddings = []
         query_embeddings = []
         # print(f"{type(batch[0][0])}")
-        for tiny_code, tiny_query in tqdm(DataLoader(batch, batch_size=tiny_batch)):
+        for tiny_code, tiny_query in tqdm(DataLoader(batch, batch_size=tiny_batch, shuffle=False)):
             _, code_tiny_embeddings = self(**tiny_code)
             _, query_tiny_embeddings = self(**tiny_query)
 
@@ -131,6 +131,7 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
 
     def test_epoch_end(self, outputs):
         loss = torch.stack([d['test_loss'] for d in outputs]).mean()
+        self.logger.experiment.summary["mrr"] = loss
         return {
             'test_loss': loss,
             'log': { #FIXME: only train_step and valid are logged in pytorch lightning
@@ -144,8 +145,8 @@ if __name__ == "__main__":
     np.random.seed(seed)
     torch.manual_seed(seed)
     fast = snakemake.params.fast
-    pct = 0.05 if fast else 1.0
-    test_batch_size = int(1000 * pct)
+#     pct = 0.05 if fast else 1.0
+    test_batch_size = 1000#int(1000 * pct)
     model = RobertaCodeQuerySoftmax(snakemake.input, test_batch=test_batch_size)
     fast_str = ("_fast" if fast else "")
     wandb_logger = pl.loggers.WandbLogger( 
@@ -154,7 +155,7 @@ if __name__ == "__main__":
     )
     trainer = pl.Trainer(
         gpus=[1],
-        overfit_pct=pct,
+        fast_dev_run=fast,
         logger=wandb_logger,
     )
     trainer.test(model)
