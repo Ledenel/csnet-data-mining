@@ -6,10 +6,10 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 import seqtools as sq
-from torch.utils.data.dataloader import default_collate
 from tqdm import tqdm
 from yummycurry import curry
 import numpy as np
+from torch.utils.data._utils.collate import default_collate, default_convert
 
 @curry
 def tokenize_plus(tokenizer, text, pad_to_max_length=True):
@@ -22,7 +22,7 @@ def tokenize_plus(tokenizer, text, pad_to_max_length=True):
     )
     for key in encode_dict:
         encode_dict[key] = np.array(encode_dict[key])
-    return encode_dict
+    return default_convert(encode_dict)
 
 def no_collate(data_list):
     return data_list
@@ -48,7 +48,7 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
         return DataLoader(sq.collate([tok_codes, tok_docs]), batch_size=batch_size, **kwargs)
 
     def test_dataloader(self):
-        return self._load(self.datapath.test, batch_size=20 ,collate_fn=no_collate)
+        return self._load(self.datapath.test, batch_size=20, collate_fn=no_collate)
 
     def train_dataloader(self):
         return self._load(self.datapath.train, batch_size=200)
@@ -84,11 +84,11 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
     def test_step(self, batch, batch_idx, tiny_batch=3):
         code_embeddings = []
         query_embeddings = []
-        # print(f"{type(batch), len(batch), batch[0]}")
+        print(f"{type(batch[0][0])}")
         for tiny_code, tiny_query in tqdm(DataLoader(batch, batch_size=tiny_batch)):
             #FIXME: move tokenize items into prepare_data / test_dataloader, let batch tensors stay on cuda.
             samp = list(tiny_code.values())[0]
-            print(f"{samp, samp.type(), samp.shape}")
+            print(f"{samp.type(), samp.shape}")
             _, code_tiny_embeddings = self(**tiny_code) 
             _, query_tiny_embeddings = self(**tiny_query)
 
