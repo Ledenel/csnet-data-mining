@@ -10,6 +10,7 @@ from tqdm import tqdm
 from yummycurry import curry
 import numpy as np
 from torch.utils.data._utils.collate import default_collate, default_convert
+from pytorch_lightning.loggers import WandbLogger
 
 
 @curry
@@ -129,10 +130,10 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
         }
 
     def test_epoch_end(self, outputs):
-        loss = torch.stack(outputs).mean()
+        loss = torch.stack([d['test_loss'] for d in outputs]).mean()
         return {
             'test_loss': loss,
-            'log': {
+            'log': { #FIXME: only train_step and valid are logged in pytorch lightning
                 'test_loss': loss,
             }
         }
@@ -142,16 +143,17 @@ if __name__ == "__main__":
     seed = int(snakemake.params.seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
-    pct = 0.05 if snakemake.params.fast else 1.0
+    fast = snakemake.params.fast
+    pct = 0.05 if fast else 1.0
     test_batch_size = int(1000 * pct)
     model = RobertaCodeQuerySoftmax(snakemake.input, test_batch=test_batch_size)
-    logger = pl.loggers.WandbLogger(
-        name=f"roberta_base_on_{snakemake.wildcards.lang}_{snakemake.wildcards.extra}",
+    fast_str = ("_fast" if fast else "")
+    wandb_logger = pl.loggers.WandbLogger( name=f"roberta_base_on_{snakemake.wildcards.lang}_{snakemake.wildcards.extra}",
         project="csnet-roberta",
     )
     trainer = pl.Trainer(
         gpus=[1],
         overfit_pct=pct,
-        logger=logger,
+        logger=wandb_logger,
     )
     trainer.test(model)
