@@ -15,7 +15,7 @@ from pytorch_lightning.loggers import WandbLogger
 
 @curry
 def tokenize_plus(tokenizer, text, pad_to_max_length=True):
-    encode_dict = tokenizer.encode_plus(  # FIXME: using encode_plus for single text tokenization (in seqtools.smap).
+    encode_dict = tokenizer.encode_plus(  # using encode_plus for single text tokenization (in seqtools.smap).
         text,
         add_special_tokens=True,
         # return_tensors="pt", # pt makes a batched tensor (1,512), flat it to avoid wrong batching
@@ -81,7 +81,7 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
         return torch.optim.Adam(self.parameters())
 
     def _tokenize(self, inputs, pad_to_max_length=True):
-        return self.tokenizer.batch_encode_plus(  # FIXME: using encode_plus for single text tokenization (in seqtools.smap).
+        return self.tokenizer.batch_encode_plus(  # DEPRECATED
             inputs,
             add_special_tokens=True,
             return_tensors="pt",
@@ -107,7 +107,7 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
 
         # print(f"code:{code}")
 
-        # _, code_embeddings = self(**code) # FIXME: no more than 12582912000 (in batch 1000, 12GB)
+        # _, code_embeddings = self(**code) # no more than 12582912000 (in batch 1000, 12GB)
         # _, query_embeddings = self(**query)
 
         # dot product for each
@@ -148,7 +148,8 @@ if __name__ == "__main__":
     test_batch_size = int(1000 * pct)
     model = RobertaCodeQuerySoftmax(snakemake.input, test_batch=test_batch_size)
     fast_str = ("_fast" if fast else "")
-    wandb_logger = pl.loggers.WandbLogger( name=f"roberta_base_on_{snakemake.wildcards.lang}_{snakemake.wildcards.extra}",
+    wandb_logger = pl.loggers.WandbLogger( 
+        name=f"roberta_base_on_{snakemake.wildcards.lang}_{snakemake.wildcards.extra}{fast_str}",
         project="csnet-roberta",
     )
     trainer = pl.Trainer(
