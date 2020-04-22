@@ -8,6 +8,27 @@ from torch import nn
 import seqtools as sq
 from torch.utils.data.dataloader import default_collate
 from tqdm import tqdm
+from yummycurry import curry
+import numpy as np
+
+@curry
+def tokenize_plus(tokenizer, text, pad_to_max_length=True):
+    encode_dict = tokenizer.encode_plus( #FIXME: using encode_plus for single text tokenization (in seqtools.smap).
+        text,
+        add_special_tokens=True,
+        # return_tensors="pt",
+        max_length=tokenizer.max_len,
+        pad_to_max_length=pad_to_max_length,
+    )
+    for key in encode_dict:
+        encode_dict[key] = np.array(encode_dict[key])
+    return encode_dict
+
+def no_collate(data_list):
+    return data_list
+
+def shallow_collate(data_list):
+    return [default_collate([x])[0] for x in data_list]
 
 class RobertaCodeQuerySoftmax(pl.LightningModule):
     def __init__(self, inputs):
@@ -19,13 +40,15 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
     def forward(self, *args, **kwargs):
         return self.model(*args, **kwargs)
 
-    def _load(self, file_path, batch_size=1000):
+    def _load(self, file_path, batch_size=1000, **kwargs):
         seqs = seq_all(file_path)
         codes, docs = seqs["codes"], seqs["docs"]
-        return DataLoader(sq.collate([codes, docs]), batch_size=batch_size)
+        tok_codes = sq.smap(tokenize_plus(self.tokenizer), codes)
+        tok_docs = sq.smap(tokenize_plus(self.tokenizer), docs)
+        return DataLoader(sq.collate([tok_codes, tok_docs]), batch_size=batch_size, **kwargs)
 
     def test_dataloader(self):
-        return self._load(self.datapath.test)
+        return self._load(self.datapath.test, batch_size=20 ,collate_fn=no_collate)
 
     def train_dataloader(self):
         return self._load(self.datapath.train, batch_size=200)
@@ -57,22 +80,17 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
             max_length=self.tokenizer.max_len,
             pad_to_max_length=pad_to_max_length,
         )
-        
 
-    def test_step(self, batch, batch_idx):
-        code, query = batch
-        
+    def test_step(self, batch, batch_idx, tiny_batch=3):
         code_embeddings = []
         query_embeddings = []
-
-        for tiny_code, tiny_query in tqdm(sq.batch(sq.collate([code, query]), k=50, collate_fn=default_collate)):
-            
+        # print(f"{type(batch), len(batch), batch[0]}")
+        for tiny_code, tiny_query in tqdm(DataLoader(batch, batch_size=tiny_batch)):
             #FIXME: move tokenize items into prepare_data / test_dataloader, let batch tensors stay on cuda.
-            code = self._tokenize(tiny_code)
-            query = self._tokenize(tiny_query)
-            
-            _, code_tiny_embeddings = self(**code) 
-            _, query_tiny_embeddings = self(**query)
+            samp = list(tiny_code.values())[0]
+            print(f"{samp, samp.type(), samp.shape}")
+            _, code_tiny_embeddings = self(**tiny_code) 
+            _, query_tiny_embeddings = self(**tiny_query)
 
             code_embeddings.append(code_tiny_embeddings)
             query_embeddings.append(query_tiny_embeddings)
@@ -105,6 +123,6 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
 
 if __name__ == "__main__":
     model = RobertaCodeQuerySoftmax(snakemake.input)
-    trainer = pl.Trainer(gpus=0, fast_dev_run=False)
+    trainer = pl.Trainer(gpus=0, fast_dev_run=True)
     trainer.test(model)
     

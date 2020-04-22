@@ -37,7 +37,7 @@ rule all:
         "corpus/go_train_0.doc.txt",
         "corpus/go_train_0.code.txt",
         "corpus/tokenizer/go_train_0.code-size=20000/vocab.txt",
-        "bert_scratch_go_0.done"
+        expand("bert_scratch_{lang}_all.done", lang="python|javascript|java|ruby|php|go".split("|")),
         # directory("model_param/pretrain/go_train_0-tokenizer:size=20000"),
 
 rule extract_language_stat:

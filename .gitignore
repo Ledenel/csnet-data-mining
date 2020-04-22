@@ -353,3 +353,4 @@ stats
 profill
 corpus 
 lightning_logs
+*.done
