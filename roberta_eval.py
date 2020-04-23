@@ -92,7 +92,7 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
             "log": metrics
         }
 
-    def validation_step_end(self, outputs):
+    def validation_epoch_end(self, outputs):
         return {
             "avg_val_loss": torch.stack([x["val_loss"] for x in outputs]).mean()
         }
@@ -169,4 +169,5 @@ if __name__ == "__main__":
         callbacks=[ckpt]
     )
     trainer.fit(model)
+    trainer.
     trainer.test(model)
