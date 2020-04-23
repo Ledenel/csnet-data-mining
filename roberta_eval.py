@@ -169,5 +169,5 @@ if __name__ == "__main__":
         callbacks=[ckpt]
     )
     trainer.fit(model)
-    trainer.
+    # TODO: verify that lighting will pick best model evaluated in validation.
     trainer.test(model)
