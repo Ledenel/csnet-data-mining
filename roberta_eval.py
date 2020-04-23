@@ -59,6 +59,9 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
     def test_dataloader(self):
         return self._load(self.datapath.test, batch_size=self.test_batch, collate_fn=no_collate)
 
+    def val_dataloader(self):
+        return self._load(self.datapath.valid, collate_fn=no_collate)
+
     def train_dataloader(self):
         return self._load(self.datapath.train, batch_size=200)
 
@@ -67,15 +70,32 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
         code = self._tokenize(code)
         query = self._tokenize(query)
 
-        code_embeddings = self(**code)
-        query_embeddings = self(**query)
+        _, code_embeddings = self(**code)
+        _, query_embeddings = self(**query)
         # dot product for each
         each_code_similarity_per_query = query_embeddings @ code_embeddings.T
         log_softmaxes = nn.LogSoftmax(1)(each_code_similarity_per_query)
         losses = F.nll_loss(log_softmaxes, target=torch.arange(
             len(code_embeddings)), reduce="mean")
 
-        return losses.mean()
+        return {
+            "train_loss": losses.mean(),
+            "log": {
+                "train_loss": losses.mean(),
+            }
+        }
+    
+    def validation_step(self):
+        metrics = self.test_step()
+        return {
+            "val_loss": metrics["test_loss"],
+            "log": metrics
+        }
+
+    def validation_step_end(self, outputs):
+        return {
+            "val_loss": torch.stack([x["val_loss"] for x in outputs]).mean()
+        }
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters())
@@ -93,7 +113,7 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
         code_embeddings = []
         query_embeddings = []
         # print(f"{type(batch[0][0])}")
-        for tiny_code, tiny_query in tqdm(DataLoader(batch, batch_size=tiny_batch, shuffle=False)):
+        for tiny_code, tiny_query in DataLoader(batch, batch_size=tiny_batch, shuffle=False):
             _, code_tiny_embeddings = self(**tiny_code)
             _, query_tiny_embeddings = self(**tiny_query)
 
@@ -102,13 +122,6 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
 
         code_embeddings = torch.cat(code_embeddings)
         query_embeddings = torch.cat(query_embeddings)
-
-        # for tiny_code, tiny_query in DataLoader()
-
-        # print(f"code:{code}")
-
-        # _, code_embeddings = self(**code) # no more than 12582912000 (in batch 1000, 12GB)
-        # _, query_embeddings = self(**query)
 
         # dot product for each
         each_code_similarity_per_query = query_embeddings @ code_embeddings.T
@@ -123,10 +136,7 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
 
         return {
             'test_loss': mrr,
-            "log": {
-                "rank": scores_bigger_sum,
-                "mrr": mrr,
-            }
+            'rank': scores_bigger_sum,
         }
 
     def test_epoch_end(self, outputs):
@@ -134,9 +144,6 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
         self.logger.experiment.summary["mrr"] = loss
         return {
             'test_loss': loss,
-            'log': { #FIXME: only train_step and valid are logged in pytorch lightning
-                'test_loss': loss,
-            }
         }
 
 
