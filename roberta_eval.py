@@ -14,12 +14,14 @@ from pytorch_lightning.loggers import WandbLogger
 
 
 @curry
-def tokenize_plus(tokenizer, text, pad_to_max_length=True):
+def tokenize_plus(tokenizer, text, max_len=None, pad_to_max_length=True):
+    if max_len is None:
+        max_len = tokenizer.max_len
     encode_dict = tokenizer.encode_plus(  # using encode_plus for single text tokenization (in seqtools.smap).
         text,
         add_special_tokens=True,
         # return_tensors="pt", # pt makes a batched tensor (1,512), flat it to avoid wrong batching
-        max_length=tokenizer.max_len,
+        max_length=max_len,
         pad_to_max_length=pad_to_max_length,
     )
     for key in encode_dict:
@@ -49,15 +51,15 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
     def forward(self, *args, **kwargs):
         return self.model(*args, **kwargs)
         
-    def _preload_data(self, file_path, batch_size=1000):
+    def _preload_data(self, file_path, batch_size=1000, max_len=None):
         seqs = seq_all(file_path)
         codes, docs = seqs["codes"], seqs["docs"]
-        tok_codes = sq.smap(tokenize_plus(self.tokenizer), codes)
-        tok_docs = sq.smap(tokenize_plus(self.tokenizer), docs)
+        tok_codes = sq.smap(tokenize_plus(self.tokenizer, max_len=max_len), codes)
+        tok_docs = sq.smap(tokenize_plus(self.tokenizer, max_len=max_len), docs)
         return sq.collate([tok_codes, tok_docs])
 
-    def _load(self, file_path, batch_size=1000, **kwargs):
-        return DataLoader(self._preload_data(file_path, batch_size=batch_size), batch_size=batch_size, **kwargs)
+    def _load(self, file_path, batch_size=1000, max_len=None, **kwargs):
+        return DataLoader(self._preload_data(file_path, batch_size=batch_size, max_len=max_len), batch_size=batch_size, **kwargs)
 
     def test_dataloader(self):
         return self._load(self.datapath.test, batch_size=self.test_batch, collate_fn=no_collate)
@@ -66,7 +68,7 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
         return self._load(self.datapath.valid, collate_fn=no_collate)
 
     def train_dataloader(self):
-        return self._load(self.datapath.train, batch_size=200)
+        return self._load(self.datapath.train, batch_size=20, max_len=200)
 
     def training_step(self, batch, batch_idx):
         code, query = batch
@@ -77,12 +79,11 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
         each_code_similarity_per_query = query_embeddings @ code_embeddings.T
         log_softmaxes = nn.LogSoftmax(1)(each_code_similarity_per_query)
         losses = F.nll_loss(log_softmaxes, target=torch.arange(
-            len(code_embeddings)), reduce="mean")
-
+        len(code_embeddings)).to(log_softmaxes.device), reduce="mean")
         return {
-            "train_loss": losses.mean(),
+            "loss": losses.mean(),
             "log": {
-                "train_loss": losses.mean(),
+                "cross_entropy_loss": losses.mean(),
             }
         }
     
@@ -95,7 +96,7 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
 
     def validation_epoch_end(self, outputs):
         return {
-            "avg_val_loss": torch.stack([x["val_loss"] for x in outputs]).mean()
+            "val_loss": torch.stack([x["val_loss"] for x in outputs]).mean()
         }
 
     def configure_optimizers(self):
@@ -164,10 +165,10 @@ if __name__ == "__main__":
     )
     ckpt = pl.callbacks.ModelCheckpoint(filepath='saved_module/'+run_name+'/{epoch}-mrr{val_loss:.4f}', mode="max")
     trainer = pl.Trainer(
-        gpus=0,
+        gpus=[1],
         fast_dev_run=fast,
         logger=wandb_logger,
-        callbacks=[ckpt]
+        checkpoint_callbacks=[ckpt]
     )
     trainer.fit(model)
     # TODO: verify that lighting will pick best model evaluated in validation.
