@@ -94,7 +94,7 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
 
     def validation_step_end(self, outputs):
         return {
-            "val_loss": torch.stack([x["val_loss"] for x in outputs]).mean()
+            "avg_val_loss": torch.stack([x["val_loss"] for x in outputs]).mean()
         }
 
     def configure_optimizers(self):
@@ -156,13 +156,17 @@ if __name__ == "__main__":
     test_batch_size = 1000#int(1000 * pct)
     model = RobertaCodeQuerySoftmax(snakemake.input, test_batch=test_batch_size)
     fast_str = ("_fast" if fast else "")
+    run_name = f"roberta_base_on_{snakemake.wildcards.lang}_{snakemake.wildcards.extra}{fast_str}"
     wandb_logger = pl.loggers.WandbLogger( 
-        name=f"roberta_base_on_{snakemake.wildcards.lang}_{snakemake.wildcards.extra}{fast_str}",
+        name=run_name,
         project="csnet-roberta",
     )
+    ckpt = pl.callbacks.ModelCheckpoint(filepath='saved_module/'+run_name+'/{epoch}-mrr{val_loss:.4f}', mode="max")
     trainer = pl.Trainer(
         gpus=[1],
         fast_dev_run=fast,
         logger=wandb_logger,
+        callbacks=[ckpt]
     )
+    trainer.fit(model)
     trainer.test(model)
