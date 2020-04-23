@@ -85,8 +85,8 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
             }
         }
     
-    def validation_step(self):
-        metrics = self.test_step()
+    def validation_step(self, batch, batch_idx):
+        metrics = self.test_step(batch, batch_idx)
         return {
             "val_loss": metrics["test_loss"],
             "log": metrics
