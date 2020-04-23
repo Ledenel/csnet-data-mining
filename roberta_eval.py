@@ -49,12 +49,18 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
     def forward(self, *args, **kwargs):
         return self.model(*args, **kwargs)
 
-    def _load(self, file_path, batch_size=1000, **kwargs):
+    def prepare_data(self):
+        self._preload_data()
+        
+    def _preload_data(self, file_path, batch_size=1000):
         seqs = seq_all(file_path)
         codes, docs = seqs["codes"], seqs["docs"]
         tok_codes = sq.smap(tokenize_plus(self.tokenizer), codes)
         tok_docs = sq.smap(tokenize_plus(self.tokenizer), docs)
-        return DataLoader(sq.collate([tok_codes, tok_docs]), batch_size=batch_size, **kwargs)
+        return sq.collate([tok_codes, tok_docs])
+
+    def _load(self, file_path, batch_size=1000, **kwargs):
+        return DataLoader(self._preload_data(file_path, batch_size=batch_size), batch_size=batch_size, **kwargs)
 
     def test_dataloader(self):
         return self._load(self.datapath.test, batch_size=self.test_batch, collate_fn=no_collate)
@@ -65,10 +71,8 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
     def train_dataloader(self):
         return self._load(self.datapath.train, batch_size=200)
 
-    def training_step(self):
+    def training_step(self, batch, batch_idx):
         code, query = batch
-        code = self._tokenize(code)
-        query = self._tokenize(query)
 
         _, code_embeddings = self(**code)
         _, query_embeddings = self(**query)
