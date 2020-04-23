@@ -48,9 +48,6 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
 
     def forward(self, *args, **kwargs):
         return self.model(*args, **kwargs)
-
-    def prepare_data(self):
-        self._preload_data()
         
     def _preload_data(self, file_path, batch_size=1000):
         seqs = seq_all(file_path)
@@ -167,7 +164,7 @@ if __name__ == "__main__":
     )
     ckpt = pl.callbacks.ModelCheckpoint(filepath='saved_module/'+run_name+'/{epoch}-mrr{val_loss:.4f}', mode="max")
     trainer = pl.Trainer(
-        gpus=[1],
+        gpus=0,
         fast_dev_run=fast,
         logger=wandb_logger,
         callbacks=[ckpt]

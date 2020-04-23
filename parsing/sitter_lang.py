@@ -9,7 +9,7 @@ import re
 import logging
 
 so_path = pkg_resources.resource_filename(__name__, "build/my-languages.so")
-logging.info("language_so_path:", so_path)
+# logging.info("language_so_path:{}", so_path)
 
 @lru_cache(10)
 def get_parser(name):

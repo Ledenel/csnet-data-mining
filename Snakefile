@@ -360,5 +360,6 @@ rule merge_language_dataset_split_part:
     run:
         import pandas as pd
         merged = pd.concat([pd.read_pickle(path) for path in input])
+        merged.reset_index(inplace=True)
         merged.to_pickle(output[0])
 
