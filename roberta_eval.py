@@ -68,7 +68,7 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
         return self._load(self.datapath.valid, collate_fn=no_collate)
 
     def train_dataloader(self):
-        return self._load(self.datapath.train, batch_size=20, max_len=200)
+        return self._load(self.datapath.train, batch_size=20, max_len=200) #TODO batch_size:64 len:200
 
     def training_step(self, batch, batch_idx):
         code, query = batch
@@ -100,7 +100,7 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
         }
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters())
+        return torch.optim.Adam(self.parameters(), lr=1e-5) #TODO: Fine-tuning: lr=1e-5
 
     def _tokenize(self, inputs, pad_to_max_length=True):
         return self.tokenizer.batch_encode_plus(  # DEPRECATED
