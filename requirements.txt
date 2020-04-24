@@ -8,7 +8,6 @@ requests
 ring
 pympler
 setupextras
-git+https://github.com/Ledenel/python-attributedict
 pandas
 snakemake
 seqtools

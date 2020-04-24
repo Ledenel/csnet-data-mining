@@ -37,7 +37,7 @@ rule all:
         "corpus/go_train_0.doc.txt",
         "corpus/go_train_0.code.txt",
         "corpus/tokenizer/go_train_0.code-size=20000/vocab.txt",
-        expand("bert_scratch_{lang}_all_fast.done", lang="python|javascript|java|ruby|php|go".split("|")),
+        expand("roberta_{lang}_all.done", lang="python|javascript|java|ruby|php|go".split("|")),
         # directory("model_param/pretrain/go_train_0-tokenizer:size=20000"),
 
 rule extract_language_stat:
@@ -248,6 +248,24 @@ rule train_eval_bert_scratch_dev:
     params:
         seed = 127,
         fast = True,
+    resources:
+        gpus = 1,
+    script:
+        "roberta_eval.py"
+
+rule roberta_train:
+    input:
+        train = "data_cache/{lang}_train_{extra}.pkl",
+        valid = "data_cache/{lang}_valid_{extra}.pkl",
+        test = "data_cache/{lang}_test_{extra}.pkl",
+        fast_dev = "bert_scratch_{lang}_{extra}_fast.done",
+    output:
+        done = touch("roberta_{lang}_{extra}.done")
+    params:
+        seed = 127,
+        fast = False,
+    resources:
+        gpus = 1,
     script:
         "roberta_eval.py"
 

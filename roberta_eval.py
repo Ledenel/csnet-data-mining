@@ -11,7 +11,7 @@ from yummycurry import curry
 import numpy as np
 from torch.utils.data._utils.collate import default_collate, default_convert
 from pytorch_lightning.loggers import WandbLogger
-
+import ast
 
 @curry
 def tokenize_plus(tokenizer, text, max_len=None, pad_to_max_length=True):
@@ -156,7 +156,7 @@ if __name__ == "__main__":
     fast = snakemake.params.fast
 #     pct = 0.05 if fast else 1.0
     test_batch_size = 1000#int(1000 * pct)
-    model = RobertaCodeQuerySoftmax(snakemake.input, test_batch=test_batch_size)
+
     fast_str = ("_fast" if fast else "")
     run_name = f"roberta_base_on_{snakemake.wildcards.lang}_{snakemake.wildcards.extra}{fast_str}"
     wandb_logger = pl.loggers.WandbLogger( 
@@ -164,12 +164,18 @@ if __name__ == "__main__":
         project="csnet-roberta",
     )
     ckpt = pl.callbacks.ModelCheckpoint(filepath='saved_module/'+run_name+'/{epoch}-mrr{val_loss:.4f}', mode="max")
+    # print(f"{snakemake.config}")
+    if "gpu_ids" in snakemake.config:
+        gpu_ids = ast.literal_eval(str(snakemake.config["gpu_ids"]).strip())
+    else:
+        gpu_ids = 0
     trainer = pl.Trainer(
-        gpus=[1],
+        gpus=gpu_ids,
         fast_dev_run=fast,
         logger=wandb_logger,
         checkpoint_callbacks=[ckpt]
     )
+    model = RobertaCodeQuerySoftmax(snakemake.input, test_batch=test_batch_size)
     trainer.fit(model)
     # TODO: verify that lighting will pick best model evaluated in validation.
     trainer.test(model)
