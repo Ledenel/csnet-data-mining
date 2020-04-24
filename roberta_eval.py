@@ -7,14 +7,14 @@ import torch.nn.functional as F
 from torch import nn
 import seqtools as sq
 from tqdm import tqdm
-from yummycurry import curry
+from pymonad.Reader import curry
 import numpy as np
 from torch.utils.data._utils.collate import default_collate, default_convert
 from pytorch_lightning.loggers import WandbLogger
 import ast
 
 @curry
-def tokenize_plus(tokenizer, text, max_len=None, pad_to_max_length=True):
+def tokenize_plus(tokenizer, max_len, pad_to_max_length, text):
     if max_len is None:
         max_len = tokenizer.max_len
     encode_dict = tokenizer.encode_plus(  # using encode_plus for single text tokenization (in seqtools.smap).
@@ -54,8 +54,8 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
     def _preload_data(self, file_path, batch_size=1000, max_len=None):
         seqs = seq_all(file_path)
         codes, docs = seqs["codes"], seqs["docs"]
-        tok_codes = sq.smap(tokenize_plus(self.tokenizer, max_len=max_len), codes)
-        tok_docs = sq.smap(tokenize_plus(self.tokenizer, max_len=max_len), docs)
+        tok_codes = sq.smap(tokenize_plus(self.tokenizer, max_len, True), codes)
+        tok_docs = sq.smap(tokenize_plus(self.tokenizer, max_len, True), docs)
         return sq.collate([tok_codes, tok_docs])
 
     def _load(self, file_path, batch_size=1000, max_len=None, **kwargs):

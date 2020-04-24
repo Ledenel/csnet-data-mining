@@ -5,7 +5,7 @@ import torch
 
 from dataset_seq import seq_all
 
-from yummycurry import curry
+from pymonad.Reader import curry
 
 # input:
 #     train_data = "data_cache/{lang}_train_{extra}.pkl",

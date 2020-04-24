@@ -11,7 +11,7 @@ setupextras
 pandas
 snakemake
 seqtools
-yummycurry
+PyMonad
 dpu_utils
 wandb
 transformers

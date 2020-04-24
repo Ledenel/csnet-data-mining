@@ -4,7 +4,7 @@ import os
 
 import pandas as pd
 import seqtools as sq
-from yummycurry import curry
+from pymonad.Reader import curry
 from dpu_utils.codeutils import split_identifier_into_parts
 
 from parsing.sitter_lang import get_parser
@@ -19,11 +19,14 @@ def randomize_mask(seq):
     #ref: https://github.com/huggingface/transformers/blob/master/examples/run_language_modeling.py#L179
     raise NotImplementedError
 
+def utf8encode(x_str):
+    return x_str.encode(encoding="utf-8")
+
 def seq_all(_input_path):
     _sample_df = pd.read_pickle(_input_path)
     codes = _sample_df["code"]
     docs = _sample_df["docstring"]
-    code_bytes = sq.smap(curry(str.encode)(encoding="utf-8"), codes)
+    code_bytes = sq.smap(utf8encode, codes)
     languages = _sample_df["language"]
     parsers = sq.smap(get_parser, languages)
     asts = sq.smap(Parser.parse, parsers, code_bytes)

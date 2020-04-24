@@ -330,14 +330,13 @@ rule stat_of_dataset:
         # don't value count unhashable type (like list) or value count on list values(via explode?)(str is iterable, no recursive count).
         # value_count_df.to_csv(output.value_counts_csv)
 
-from yummycurry import curry
+from pymonad.Reader import curry
 
 @curry
 def combine_format(keys, format, series):
     output_dict = dict(zip(keys, series))
     return format.format(**output_dict)
 
-@curry
 def dataset_format_paths(output_args, format, wildcards):
     """
     function constructor to feed path table columns into specific path format.
@@ -372,7 +371,8 @@ rule merge_language_dataset:
 
 rule merge_language_dataset_split_part:
     input:
-        dataset_format_paths(["dataset_chunk"], "data_cache/{dataset_chunk}.pkl"),
+        dataset_format_paths_language,
+        # dataset_format_paths(["dataset_chunk"], "data_cache/{dataset_chunk}.pkl"),
     output:
         "data_cache/{language}_{split}_all.pkl"
     run:
