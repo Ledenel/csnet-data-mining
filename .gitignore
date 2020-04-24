@@ -354,3 +354,4 @@ profill
 corpus 
 lightning_logs
 *.done
+!parsing/build/my-languages.so
