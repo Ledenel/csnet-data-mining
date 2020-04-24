@@ -11,7 +11,6 @@ from pathlib import Path
 from tqdm import tqdm
 import pympler.muppy as mp
 from pympler import asizeof
-from attributedict.collections import AttributeDict
 from time import perf_counter
 
 import zipfile
@@ -123,7 +122,7 @@ class CodeSearchDataPath:
         return self._tuple_key() < other._tuple_key()
 
 
-def sample_preprocess(line):
+def sample_preprocess(line): #FIXME: add attribute-dict alternative, or fall back to plain dict
     item_template = json.loads(line)
     item = AttributeDict(item_template)
 
