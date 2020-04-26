@@ -68,7 +68,7 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
         return self._load(self.datapath.valid, collate_fn=no_collate)
 
     def train_dataloader(self):
-        return self._load(self.datapath.train, batch_size=20, max_len=200) #TODO batch_size:64 len:200
+        return self._load(self.datapath.train, batch_size=15, max_len=200, shuffle=True) #TODO batch_size:64 len:200
 
     def training_step(self, batch, batch_idx):
         code, query = batch
@@ -90,13 +90,18 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         metrics = self.test_step(batch, batch_idx)
         return {
-            "val_loss": metrics["test_loss"],
+            "val_loss": metrics["mrr"],
             "log": metrics
         }
 
     def validation_epoch_end(self, outputs):
+        collate_loss = default_collate(outputs)
+        val_loss = collate_loss["val_loss"].mean()
         return {
-            "val_loss": torch.stack([x["val_loss"] for x in outputs]).mean()
+            "val_loss": val_loss,
+            "log": {
+                k:v.mean() for k,v in collate_loss["log"].items()
+            }
         }
 
     def configure_optimizers(self):
@@ -135,15 +140,20 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
         scores_bigger_sum = scores_bigger_mask.sum(1).type(torch.float)
         reiprocal_rank = 1 / scores_bigger_sum
         mrr = reiprocal_rank.mean()
-
-        return {
-            'test_loss': mrr,
-            'rank': scores_bigger_sum,
+        rank = scores_bigger_sum
+        
+        result = {
+            'mrr': mrr,
         }
+        for topk in [1,3,5,10,20,100]:
+            result[f"top{topk}-acc"] = (rank <= topk).sum() / float(len(rank))
+        return result
 
     def test_epoch_end(self, outputs):
-        loss = torch.stack([d['test_loss'] for d in outputs]).mean()
-        self.logger.experiment.summary["mrr"] = loss
+        collate_loss = default_collate(outputs)
+        loss = collate_loss['mrr'].mean()
+        for k,v in collate_loss.items():
+            self.logger.experiment.summary[k] = v.mean()
         return {
             'test_loss': loss,
         }
@@ -173,7 +183,8 @@ if __name__ == "__main__":
         gpus=gpu_ids,
         fast_dev_run=fast,
         logger=wandb_logger,
-        checkpoint_callbacks=[ckpt]
+        checkpoint_callbacks=[ckpt],
+        amp_level='O1',
     )
     model = RobertaCodeQuerySoftmax(snakemake.input, test_batch=test_batch_size)
     trainer.fit(model)
