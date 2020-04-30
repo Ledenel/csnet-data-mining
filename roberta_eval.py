@@ -1,6 +1,6 @@
 import pytorch_lightning as pl
 from torch.utils.data.dataloader import DataLoader
-from transformers import AutoTokenizer, AutoModel, AutoModelWithLMHead
+from transformers import AutoTokenizer, AutoModel, AutoModelWithLMHead, AutoConfig
 from dataset_seq import seq_all
 import torch
 import torch.nn.functional as F
@@ -39,14 +39,17 @@ def shallow_collate(data_list):
 
 
 class RobertaCodeQuerySoftmax(pl.LightningModule):
-    def __init__(self, inputs, test_batch=1000):
+    def __init__(self, hparams):
         super().__init__()
-        self.datapath = inputs
+
+        self.hparams = hparams
+        
+        self.datapath = hparams["datapath"]
         self.tokenizer = AutoTokenizer.from_pretrained(
             "huggingface/CodeBERTa-small-v1", resume_download=True)
         self.model = AutoModel.from_pretrained(
-            "huggingface/CodeBERTa-small-v1", resume_download=True)
-        self.test_batch = test_batch
+            "huggingface/CodeBERTa-small-v1", resume_download=True, config=hparams["roberta_config"])
+        
 
     def forward(self, *args, **kwargs):
         return self.model(*args, **kwargs)
@@ -62,13 +65,13 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
         return DataLoader(self._preload_data(file_path, batch_size=batch_size, max_len=max_len), batch_size=batch_size, **kwargs)
 
     def test_dataloader(self):
-        return self._load(self.datapath.test, batch_size=self.test_batch, collate_fn=no_collate)
+        return self._load(self.datapath.test, batch_size=self.hparams['test_batch'], collate_fn=no_collate)
 
     def val_dataloader(self):
         return self._load(self.datapath.valid, collate_fn=no_collate)
 
     def train_dataloader(self):
-        return self._load(self.datapath.train, batch_size=15, max_len=200, shuffle=True) #TODO batch_size:64 len:200
+        return self._load(self.datapath.train, batch_size=self.hparams['train_batch'], max_len=self.hparams['train_max_len'], shuffle=True) #TODO batch_size:64 len:200
 
     def training_step(self, batch, batch_idx):
         code, query = batch
@@ -161,8 +164,7 @@ class RobertaCodeQuerySoftmax(pl.LightningModule):
 
 if __name__ == "__main__":
     seed = int(snakemake.params.seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
+
     fast = snakemake.params.fast
 #     pct = 0.05 if fast else 1.0
     test_batch_size = 1000#int(1000 * pct)
@@ -173,20 +175,34 @@ if __name__ == "__main__":
         name=run_name,
         project="csnet-roberta",
     )
+    config = AutoConfig.from_pretrained("huggingface/CodeBERTa-small-v1", resume_download=True)
     ckpt = pl.callbacks.ModelCheckpoint(filepath='saved_module/'+run_name+'/{epoch}-mrr{val_loss:.4f}', mode="max")
     # print(f"{snakemake.config}")
     if "gpu_ids" in snakemake.config:
         gpu_ids = ast.literal_eval(str(snakemake.config["gpu_ids"]).strip())
     else:
         gpu_ids = 0
+
+    hparams = {
+        "dev_mode": fast,
+        "seed": seed,
+        "roberta_config": config.to_dict(),
+        "datapath": snakemake.input,
+        "test_batch": 1000,
+        "train_batch": 32,
+        "train_max_len": 200,
+    }
+    
+    np.random.seed(seed)
+    torch.manual_seed(seed)
     trainer = pl.Trainer(
         gpus=gpu_ids,
         fast_dev_run=fast,
         logger=wandb_logger,
         checkpoint_callbacks=[ckpt],
-        amp_level='O1',
+        # amp_level='O1',
     )
-    model = RobertaCodeQuerySoftmax(snakemake.input, test_batch=test_batch_size)
+    model = RobertaCodeQuerySoftmax(hparams)
     trainer.fit(model)
     # TODO: verify that lighting will pick best model evaluated in validation.
     trainer.test(model)
