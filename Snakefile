@@ -38,6 +38,8 @@ rule all:
         # "corpus/go_train_0.code.txt",
         # "corpus/tokenizer/go_train_0.code-size=20000/vocab.txt",
         expand("roberta_{lang}_all.done", lang="python|javascript|java|ruby|php|go".split("|")),
+        # "stats/ruby-valid_0-combined_label-counts.csv"
+        expand("stats/{lang}-all-{lb}-counts.csv", lang="python|javascript|java|ruby|php|go".split("|"), lb=["type_label", "combined_label"])
         # directory("model_param/pretrain/go_train_0-tokenizer:size=20000"),
 
 rule extract_language_stat:
@@ -367,6 +369,7 @@ rule merge_language_dataset:
     run:
         import pandas as pd
         merged = pd.concat([pd.read_pickle(path) for path in input])
+        merged.reset_index(inplace=True)
         merged.to_pickle(output[0])
 
 rule merge_language_dataset_split_part:
@@ -381,3 +384,26 @@ rule merge_language_dataset_split_part:
         merged.reset_index(inplace=True)
         merged.to_pickle(output[0])
 
+rule count_ast_label:
+    input:
+        "data_cache/{lang}_{spec}.pkl"
+    output:
+        "stats/{lang}-{spec}-{ast_label}-counts.csv"
+    script:
+        "ast_label.py"
+# import pandas as pd
+# from dataset_seq import seq_all
+# import ast_label_pretrain as pt
+# from collections import Counter
+# seq_dict = seq_all(input[0])
+
+
+# labels = pt.seq_from_code_ast(sq_all)
+# cnt = Counter()
+# for sample in labels[wildcard.ast_label]:
+#     for i, label in enumerate(sample):
+#         cnt[(i, label)] += 1
+# summary_df = pd.DataFrame(cnt.values())
+# summary_df.index = pd.MultiIndex.from_tuples(cnt.keys())
+# summary_df.unstack(0)
+# summary_df.to_csv(output[0])

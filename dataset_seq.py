@@ -24,6 +24,7 @@ def utf8encode(x_str):
 
 def seq_all(_input_path):
     _sample_df = pd.read_pickle(_input_path)
+    # index = _sample_df.index
     codes = _sample_df["code"]
     docs = _sample_df["docstring"]
     code_bytes = sq.smap(utf8encode, codes)
