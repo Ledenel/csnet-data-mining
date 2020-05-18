@@ -67,6 +67,7 @@ if __name__ == "__main__":
         fast_dev_run=fast,
         logger=wandb_logger,
         checkpoint_callbacks=[ckpt],
+        max_epochs=10
         # amp_level='O1',
     )
     model = RobertaCodeQuerySoftmax(hparams)
