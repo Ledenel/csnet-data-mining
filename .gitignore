@@ -355,3 +355,6 @@ corpus
 lightning_logs
 *.done
 !parsing/build/my-languages.so
+
+wandb/*
+csnet-roberta/*

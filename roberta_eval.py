@@ -56,7 +56,7 @@ if __name__ == "__main__":
         "roberta_config": config.to_dict(),
         "datapath": snakemake.input,
         "test_batch": 1000,
-        "train_batch": 32,
+        "train_batch": 64,
         "train_max_len": 200,
     }
     
@@ -67,7 +67,7 @@ if __name__ == "__main__":
         fast_dev_run=fast,
         logger=wandb_logger,
         checkpoint_callbacks=[ckpt],
-        max_epochs=10
+        max_epochs=5
         # amp_level='O1',
     )
     model = RobertaCodeQuerySoftmax(hparams)
