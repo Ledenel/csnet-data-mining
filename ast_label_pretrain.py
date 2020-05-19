@@ -3,6 +3,8 @@ from tree_sitter import Node, TreeCursor
 import seqtools as sq
 import pytorch_lightning as pl
 import pandas as pd
+from torch.utils.data.dataloader import DataLoader
+from dataset_seq import seq_all
 
 def node_cursor_iter(cursor):
     yield cursor.copy()
@@ -113,7 +115,7 @@ class AstLabelPretrain(pl.LightningModule):
         super().__init__()
         self.hparams = hparams
         self.datapath = hparams["datapath"]
-        self.label_tokenizer = LabelTokenizer(self.datapath.label, mode=hparams["snake_params"].label_mode)
+        self.label_tokenizer = LabelTokenizer(self.datapath.label_summary, mode=hparams["snake_params"].label_mode)
         
     def _preload_data(self, file_path, batch_size=1000, max_len=None):
         seqs = seq_all(file_path)
@@ -129,7 +131,7 @@ class AstLabelPretrain(pl.LightningModule):
         return DataLoader(self._preload_data(file_path, batch_size=batch_size, max_len=max_len), batch_size=batch_size, **kwargs)
 
     def val_dataloader(self):
-        return self._load(self.datapath.valid, collate_fn=no_collate)
+        return self._load(self.datapath.valid)
 
     def train_dataloader(self):
         return self._load(self.datapath.train, batch_size=self.hparams["snake_params"].train_batch, shuffle=True)

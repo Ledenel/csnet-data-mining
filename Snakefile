@@ -37,9 +37,10 @@ rule all:
         # "corpus/go_train_0.doc.txt",
         # "corpus/go_train_0.code.txt",
         # "corpus/tokenizer/go_train_0.code-size=20000/vocab.txt",
-        expand("roberta_{lang}_all.done", lang="python|javascript|java|ruby|php|go".split("|")),
+        # expand("roberta_{lang}_all.done", lang="python|javascript|java|ruby|php|go".split("|")),
         # "stats/ruby-valid_0-combined_label-counts.csv"
-        expand("stats/{lang}-all-{lb}-counts.csv", lang="python|javascript|java|ruby|php|go".split("|"), lb=["type_label", "combined_label"])
+        # expand("stats/{lang}-all-{lb}-counts.csv", lang="python|javascript|java|ruby|php|go".split("|"), lb=["type_label", "combined_label"]),
+        "roberta_ast_label_php_0-type_label.done",
         # directory("model_param/pretrain/go_train_0-tokenizer:size=20000"),
 
 rule extract_language_stat:
@@ -275,12 +276,15 @@ rule roberta_ast_label_pretrain:
     input:
         train = "data_cache/{lang}_train_{extra}.pkl",
         valid = "data_cache/{lang}_valid_{extra}.pkl",
+        label_summary = "stats/{lang}-train_{extra}-{label_type}-counts.csv",
     output:
-        done = touch("roberta_ast_label_{lang}_{extra}.done")
+        done = touch("roberta_ast_label_{lang}_{extra}-{label_type}.done")
     params:
-        label_mode = "last"
-        label_type = "type_label"
-        train_batch = 32
+        label_mode = "last",
+        label_type = "{label_type}",
+        train_batch = 32,
+        seed = 127,
+        fast = False,
     resources:
         gpus = 1,
     script:
