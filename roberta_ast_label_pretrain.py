@@ -27,22 +27,45 @@ class RobertaPretrain(ast_label_pretrain.AstLabelPretrain):
         _, embedding = self.model(*args, **kwargs)
         return embedding
 
+def fetch_snakemake_from_latest_run(script_path):
+    import glob
+    import re
+    import os
+    _, file_name = os.path.split(script_path)
+    script_regex = re.compile(rf'^.snakemake/scripts/tmp.+\.{file_name}$')
+    snakemake_header_mark = "######## Snakemake header ########"
+    script_versions = glob.glob(".snakemake/scripts/*.py")
+    script_versions = [script for script in script_versions if script_regex.match(script)]
+    script_versions.sort(key=lambda path: os.stat(path).st_mtime)
+    latest_script_path = script_versions[-1]
+    with open(latest_script_path, "r") as f:
+        for line in f:
+            if line.strip() == snakemake_header_mark:
+                break
+        header_content = f.readline()
+        prepared_global_context = {"__file__":script_path}
+        prepared_local_context = {}
+        context = exec(header_content, prepared_global_context, prepared_local_context)
+        snakemake = prepared_local_context['snakemake']
+    return snakemake
+
 #TODO: copied from roberta_eval.py
 if __name__ == "__main__":
     try:
-        datapath = snakemake.input
-        params = snakemake.params
-        seed = int(snakemake.params.seed)
-        fast = snakemake.params.fast
-        lang = snakemake.wildcards.lang 
-        extra = snakemake.wildcards.extra
-        if "gpu_ids" in snakemake.config:
-            gpu_ids = ast.literal_eval(str(snakemake.config["gpu_ids"]).strip())
-        else:
-            gpu_ids = 0
+        snakemake
     except NameError:
-        pass
+        snakemake = fetch_snakemake_from_latest_run(__file__)
 
+    datapath = snakemake.input
+    params = snakemake.params
+    seed = int(snakemake.params.seed)
+    fast = snakemake.params.fast
+    lang = snakemake.wildcards.lang 
+    extra = snakemake.wildcards.extra
+    if "gpu_ids" in snakemake.config:
+        gpu_ids = ast.literal_eval(str(snakemake.config["gpu_ids"]).strip())
+    else:
+        gpu_ids = 0
 #     pct = 0.05 if fast else 1.0
     test_batch_size = 1000#int(1000 * pct)
 
