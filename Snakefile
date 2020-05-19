@@ -271,6 +271,21 @@ rule roberta_train:
     script:
         "roberta_eval.py"
 
+rule roberta_ast_label_pretrain:
+    input:
+        train = "data_cache/{lang}_train_{extra}.pkl",
+        valid = "data_cache/{lang}_valid_{extra}.pkl",
+    output:
+        done = touch("roberta_ast_label_{lang}_{extra}.done")
+    params:
+        label_mode = "last"
+        label_type = "type_label"
+        train_batch = 32
+    resources:
+        gpus = 1,
+    script:
+        "roberta_ast_label_pretrain.py"
+
 rule cache_dataset_chunk_to_pickle:
     input:
         "data/{language}/final/jsonl/{split}/{language}_{split}_{chunk}.jsonl.gz"

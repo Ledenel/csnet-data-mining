@@ -1,7 +1,8 @@
 from parsing.sitter_lang import get_parser
 from tree_sitter import Node, TreeCursor
 import seqtools as sq
-
+import pytorch_lightning as pl
+import pandas as pd
 
 def node_cursor_iter(cursor):
     yield cursor.copy()
@@ -64,3 +65,92 @@ def seq_from_code_ast(_seq_dict):
                     if not k.startswith("_")}
     # print(_dict_return.keys())
     return _dict_return
+
+import torch
+
+class LabelTokenizer:
+    def __init__(self, path, mode="last"):
+        df = pd.read_csv(path, header=[0,1])
+        self.mapper = {v:i for i,v in enumerate(df[df.columns[0]])}
+        self.mode = mode
+
+    def loss_module(self):
+        if mode == "last":
+            return torch.nn.CrossEntropyLoss()
+        raise ValueError(f"unrecognized mode {self.mode}.")
+
+    def last_tensor(self, labels):
+        return torch.tensor(self.mapper[labels[-1]])
+            
+    def process(self, labels):
+        mode_func = getattr(self, f"{self.mode}_tensor")
+        return mode_func(labels)
+
+from pymonad.Reader import curry
+@curry
+def tokenize_plus(tokenizer, max_len, pad_to_max_length, text):
+    if max_len is None:
+        max_len = tokenizer.max_len
+    encode_dict = tokenizer.encode_plus(  # using encode_plus for single text tokenization (in seqtools.smap).
+        text,
+        add_special_tokens=True,
+        # return_tensors="pt", # pt makes a batched tensor (1,512), flat it to avoid wrong batching
+        max_length=max_len,
+        pad_to_max_length=pad_to_max_length,
+    )
+    for key in encode_dict:
+        encode_dict[key] = np.array(encode_dict[key])
+    return default_convert(encode_dict)
+    # move tokenize items into prepare_data / test_dataloader, let batch tensors stay on cuda.
+
+@curry
+def label_tokenize(label_tokenizer, tensor):
+    return label_tokenizer.process(tensor)
+
+# TODO copied from finetuning.py
+class AstLabelPretrain(pl.LightningModule):
+    def __init__(self, hparams):
+        super().__init__()
+        self.hparams = hparams
+        self.datapath = hparams["datapath"]
+        self.label_tokenizer = LabelTokenizer(self.datapath.label, mode=hparams["snake_params"].label_mode)
+        
+    def _preload_data(self, file_path, batch_size=1000, max_len=None):
+        seqs = seq_all(file_path)
+        ast_label_seqs = seq_from_code_ast(seqs)
+        sub_codes, labels = ast_label_seqs["sub_code_pieces"], ast_label_seqs[self.hparams["snake_params"].label_type]
+        #TODO try different sample strategy for sub_codes.
+        code_pieces, piece_labels = sq.concatenate(sub_codes), sq.concatenate(labels)
+        tok_codes = sq.smap(tokenize_plus(self.tokenizer, max_len, True), code_pieces)
+        tok_piece_labels = sq.smap(label_tokenize(self.label_tokenizer), piece_labels)
+        return sq.collate([tok_codes, tok_piece_labels])
+
+    def _load(self, file_path, batch_size=1000, max_len=None, **kwargs):
+        return DataLoader(self._preload_data(file_path, batch_size=batch_size, max_len=max_len), batch_size=batch_size, **kwargs)
+
+    def val_dataloader(self):
+        return self._load(self.datapath.valid, collate_fn=no_collate)
+
+    def train_dataloader(self):
+        return self._load(self.datapath.train, batch_size=self.hparams["snake_params"].train_batch, shuffle=True)
+
+    def training_step(self, batch, batch_idx):
+        code, label = batch
+        code_embeddings = self(**code)
+        loss = self.label_tokenizer.loss_module()(code_embeddings, label)
+        return loss
+    
+    def validation_step(self, batch, batch_idx):
+        return self.training_step(batch, batch_idx)
+
+    def validation_epoch_end(self, outputs):
+        collate_loss = default_collate(outputs)
+        val_loss = collate_loss.mean()
+        return {
+            "val_loss": val_loss,
+        }
+
+    def configure_optimizers(self):
+        return torch.optim.Adam(self.parameters(), lr=1e-5) #TODO: Fine-tuning: lr=1e-5
+
+
