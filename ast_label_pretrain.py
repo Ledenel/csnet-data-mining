@@ -46,9 +46,13 @@ def _sub_labels(ast):
         for cursor in node_cursor_iter(ast.walk())
     ]
 
+from finetuning import tokenize_plus
 
 def seq_from_code_ast(_seq_dict):
     _code_bytes = _seq_dict["code_bytes"]
+    #FIXME: for php it will ALMOST contain only 'program' and 'text' (even on playground).
+    # fix it by wrapping code bytes with <?php ... ?>
+    # and check if there's any exceptions (label counts shows a different view).
     _asts = _seq_dict["asts"]
     sub_code_pieces = sq.smap(_sub_code_pieces, _asts, _code_bytes)
     # sub_asts = sq.smap(_sub_labels, _asts)
@@ -89,25 +93,13 @@ class LabelTokenizer:
         return mode_func(labels)
 
 from pymonad.Reader import curry
-@curry
-def tokenize_plus(tokenizer, max_len, pad_to_max_length, text):
-    if max_len is None:
-        max_len = tokenizer.max_len
-    encode_dict = tokenizer.encode_plus(  # using encode_plus for single text tokenization (in seqtools.smap).
-        text,
-        add_special_tokens=True,
-        # return_tensors="pt", # pt makes a batched tensor (1,512), flat it to avoid wrong batching
-        max_length=max_len,
-        pad_to_max_length=pad_to_max_length,
-    )
-    for key in encode_dict:
-        encode_dict[key] = np.array(encode_dict[key])
-    return default_convert(encode_dict)
-    # move tokenize items into prepare_data / test_dataloader, let batch tensors stay on cuda.
 
 @curry
 def label_tokenize(label_tokenizer, tensor):
     return label_tokenizer.process(tensor)
+
+def utf8decode(s: bytes):
+    return s.decode('utf-8')
 
 # TODO copied from finetuning.py
 class AstLabelPretrain(pl.LightningModule):
@@ -123,6 +115,7 @@ class AstLabelPretrain(pl.LightningModule):
         sub_codes, labels = ast_label_seqs["sub_code_pieces"], ast_label_seqs[self.hparams["snake_params"].label_type]
         #TODO try different sample strategy for sub_codes.
         code_pieces, piece_labels = sq.concatenate(sub_codes), sq.concatenate(labels)
+        code_pieces = sq.smap(utf8decode, code_pieces)
         tok_codes = sq.smap(tokenize_plus(self.tokenizer, max_len, True), code_pieces)
         tok_piece_labels = sq.smap(label_tokenize(self.label_tokenizer), piece_labels)
         return sq.collate([tok_codes, tok_piece_labels])
