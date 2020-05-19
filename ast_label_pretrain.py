@@ -53,6 +53,7 @@ def seq_from_code_ast(_seq_dict):
     #FIXME: for php it will ALMOST contain only 'program' and 'text' (even on playground).
     # fix it by wrapping code bytes with <?php ... ?>
     # and check if there's any exceptions (label counts shows a different view).
+    # language 'go' not checked.
     _asts = _seq_dict["asts"]
     sub_code_pieces = sq.smap(_sub_code_pieces, _asts, _code_bytes)
     # sub_asts = sq.smap(_sub_labels, _asts)
