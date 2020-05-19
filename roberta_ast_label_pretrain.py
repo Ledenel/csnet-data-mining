@@ -29,16 +29,25 @@ class RobertaPretrain(ast_label_pretrain.AstLabelPretrain):
 
 #TODO: copied from roberta_eval.py
 if __name__ == "__main__":
-    datapath = snakemake.input
-    params = snakemake.params
-    seed = int(snakemake.params.seed)
+    try:
+        datapath = snakemake.input
+        params = snakemake.params
+        seed = int(snakemake.params.seed)
+        fast = snakemake.params.fast
+        lang = snakemake.wildcards.lang 
+        extra = snakemake.wildcards.extra
+        if "gpu_ids" in snakemake.config:
+            gpu_ids = ast.literal_eval(str(snakemake.config["gpu_ids"]).strip())
+        else:
+            gpu_ids = 0
+    except NameError:
+        pass
 
-    fast = snakemake.params.fast
 #     pct = 0.05 if fast else 1.0
     test_batch_size = 1000#int(1000 * pct)
 
     fast_str = ("_fast" if fast else "")
-    run_name = f"roberta_base_on_{snakemake.wildcards.lang}_{snakemake.wildcards.extra}{fast_str}"
+    run_name = f"roberta_base_on_{lang}_{extra}{fast_str}"
     wandb_logger = pl.loggers.WandbLogger( 
         name=run_name,
         project="csnet-roberta",
@@ -46,16 +55,13 @@ if __name__ == "__main__":
     config = AutoConfig.from_pretrained("huggingface/CodeBERTa-small-v1", resume_download=True)
     ckpt = pl.callbacks.ModelCheckpoint(filepath='saved_module/'+run_name+'/{epoch}-mrr{val_loss:.4f}', mode="min")
     # print(f"{snakemake.config}")
-    if "gpu_ids" in snakemake.config:
-        gpu_ids = ast.literal_eval(str(snakemake.config["gpu_ids"]).strip())
-    else:
-        gpu_ids = 0
+
 
     hparams = {
         "dev_mode": fast,
         "seed": seed,
         "roberta_config": config.to_dict(),
-        "datapath": snakemake.input,
+        "datapath": datapath,
         "test_batch": 1000,
         "train_batch": 64,
         "train_max_len": 200,
