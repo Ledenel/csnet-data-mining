@@ -71,18 +71,18 @@ def seq_from_code_ast(_seq_dict):
 import torch
 
 class LabelTokenizer:
-    def __init__(self, path, mode="last"):
+    def __init__(self, path, mode="least_parent"):
         df = pd.read_csv(path, header=[0,1])
         self.mapper = {v:i for i,v in enumerate(df[df.columns[0]])}
         self.mode = mode
 
     def loss_module(self):
-        if mode == "last":
+        if mode == "least_parent":
             return torch.nn.CrossEntropyLoss()
         raise ValueError(f"unrecognized mode {self.mode}.")
 
-    def last_tensor(self, labels):
-        return torch.tensor(self.mapper[labels[-1]])
+    def least_parent_tensor(self, labels):
+        return torch.tensor(self.mapper[labels[0]])
             
     def process(self, labels):
         mode_func = getattr(self, f"{self.mode}_tensor")
