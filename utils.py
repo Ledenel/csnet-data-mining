@@ -37,3 +37,25 @@ def value_counts_describe(df, head_sample=5):
     print(all_describe)
     max_eq_min = all_describe["min"] == all_describe["max"]
     return all_describe[~max_eq_min]
+
+def fetch_snakemake_from_latest_run(script_path):
+    import glob
+    import re
+    import os
+    _, file_name = os.path.split(script_path)
+    script_regex = re.compile(rf'^.snakemake/scripts/tmp.+\.{file_name}$')
+    snakemake_header_mark = "######## Snakemake header ########"
+    script_versions = glob.glob(".snakemake/scripts/*.py")
+    script_versions = [script for script in script_versions if script_regex.match(script)]
+    script_versions.sort(key=lambda path: os.stat(path).st_mtime)
+    latest_script_path = script_versions[-1]
+    with open(latest_script_path, "r") as f:
+        for line in f:
+            if line.strip() == snakemake_header_mark:
+                break
+        header_content = f.readline()
+        prepared_global_context = {"__file__":script_path}
+        prepared_local_context = {}
+        context = exec(header_content, prepared_global_context, prepared_local_context)
+        snakemake = prepared_local_context['snakemake']
+    return snakemake

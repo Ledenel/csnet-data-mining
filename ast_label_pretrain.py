@@ -36,6 +36,11 @@ def _sub_code_pieces(ast: Node, code):
         for node in node_asts(ast)
     ]
 
+def _sub_code_indexes(ast: Node):
+    return [
+        (node.start_byte, node.end_byte)
+        for node in node_asts(ast)
+    ]
 
 def _sub_labels(ast):
     return [
@@ -45,6 +50,10 @@ def _sub_labels(ast):
         ]
         for cursor in node_cursor_iter(ast.walk())
     ]
+
+def _fetch_sub_code(index, code):
+    start, end = index
+    return code[start:end].decode('utf-8')
 
 from finetuning import tokenize_plus
 
@@ -56,6 +65,7 @@ def seq_from_code_ast(_seq_dict):
     # language 'go' not checked.
     _asts = _seq_dict["asts"]
     sub_code_pieces = sq.smap(_sub_code_pieces, _asts, _code_bytes)
+    sub_code_indexes = sq.smap(_sub_code_indexes, _asts)
     # sub_asts = sq.smap(_sub_labels, _asts)
     sub_labels = sq.smap(_sub_labels, _asts)
     type_label = sq.smap(
@@ -110,25 +120,32 @@ class AstLabelPretrain(pl.LightningModule):
         self.datapath = hparams["datapath"]
         self.label_tokenizer = LabelTokenizer(self.datapath.label_summary, mode=hparams["snake_params"].label_mode)
         
-    def _preload_data(self, file_path, batch_size=1000, max_len=None):
+    def _preload_data(self, file_path, label_file_path, batch_size=1000, max_len=None):
         seqs = seq_all(file_path)
+        codes = seqs["codes"]
+        label_index_df = pd.read_pickle(label_file_path)
+        piece_labels, indexes, sample_ids = label_index_df["label"], label_index_df["index"], label_file_path["sample_id"]
+        piece_full_code = sq.smap(lambda x:codes[x], sample_ids)
+        code_pieces = sq.smap(_fetch_sub_code, indexes, piece_full_code)
+
         ast_label_seqs = seq_from_code_ast(seqs)
         sub_codes, labels = ast_label_seqs["sub_code_pieces"], ast_label_seqs[self.hparams["snake_params"].label_type]
+        
         #TODO try different sample strategy for sub_codes.
-        code_pieces, piece_labels = sq.concatenate(sub_codes), sq.concatenate(labels)
-        code_pieces = sq.smap(utf8decode, code_pieces)
+        # code_pieces, piece_labels = sq.concatenate(sub_codes), sq.concatenate(labels)
+        # code_pieces = sq.smap(utf8decode, code_pieces)
         tok_codes = sq.smap(tokenize_plus(self.tokenizer, max_len, True), code_pieces)
         tok_piece_labels = sq.smap(label_tokenize(self.label_tokenizer), piece_labels)
         return sq.collate([tok_codes, tok_piece_labels])
 
-    def _load(self, file_path, batch_size=1000, max_len=None, **kwargs):
-        return DataLoader(self._preload_data(file_path, batch_size=batch_size, max_len=max_len), batch_size=batch_size, **kwargs)
+    def _load(self, file_path, label_file_path, batch_size=1000, max_len=None, **kwargs):
+        return DataLoader(self._preload_data(file_path, label_file_path, batch_size=batch_size, max_len=max_len), batch_size=batch_size, **kwargs)
 
     def val_dataloader(self):
-        return self._load(self.datapath.valid)
+        return self._load(self.datapath.valid, self.datapath.valid_label)
 
     def train_dataloader(self):
-        return self._load(self.datapath.train, batch_size=self.hparams["snake_params"].train_batch, shuffle=True)
+        return self._load(self.datapath.train, self.datapath.train_label, batch_size=self.hparams["snake_params"].train_batch, shuffle=True)
 
     def training_step(self, batch, batch_idx):
         code, label = batch
