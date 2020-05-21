@@ -40,7 +40,7 @@ rule all:
         # expand("roberta_{lang}_all.done", lang="python|javascript|java|ruby|php|go".split("|")),
         # "stats/ruby-valid_0-combined_label-counts.csv"
         # expand("stats/{lang}-all-{lb}-counts.csv", lang="python|javascript|java|ruby|php|go".split("|"), lb=["type_label", "combined_label"]),
-        "roberta_ast_label_java_0-type_label.done",
+        expand("roberta_ast_label_{lang}_all-type_label.done", lang="python|javascript|java|ruby|php|go")
         # directory("model_param/pretrain/go_train_0-tokenizer:size=20000"),
 
 rule extract_language_stat:
@@ -294,7 +294,7 @@ rule roberta_ast_label_pretrain:
     params:
         label_mode = "least_parent",
         label_type = "{label_type}",
-        train_batch = 32,
+        train_batch = 24,
         seed = 127,
         fast = False,
     resources:

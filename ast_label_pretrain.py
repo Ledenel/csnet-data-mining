@@ -5,6 +5,7 @@ import pytorch_lightning as pl
 import pandas as pd
 from torch.utils.data.dataloader import DataLoader
 from dataset_seq import seq_all
+from torch.utils.data._utils.collate import default_collate, default_convert
 
 def node_cursor_iter(cursor):
     yield cursor.copy()
@@ -51,9 +52,9 @@ def _sub_labels(ast):
         for cursor in node_cursor_iter(ast.walk())
     ]
 
-def _fetch_sub_code(index, code):
+def _fetch_sub_code(index, code_str):
     start, end = index
-    return code[start:end].decode('utf-8')
+    return code_str.encode('utf-8')[start:end].decode('utf-8')
 
 from finetuning import tokenize_plus
 
@@ -62,7 +63,7 @@ def seq_from_code_ast(_seq_dict):
     #FIXME: for php it will ALMOST contain only 'program' and 'text' (even on playground).
     # fix it by wrapping code bytes with <?php ... ?>
     # and check if there's any exceptions (label counts shows a different view).
-    # language 'go' not checked.
+    # java need a extra class Test{ ... } wrapper, otherwise it will not compile right.
     _asts = _seq_dict["asts"]
     sub_code_pieces = sq.smap(_sub_code_pieces, _asts, _code_bytes)
     sub_code_indexes = sq.smap(_sub_code_indexes, _asts)
@@ -92,7 +93,7 @@ class LabelTokenizer:
         self.mode = mode
 
     def loss_module(self):
-        if mode == "least_parent":
+        if self.mode == "least_parent":
             return torch.nn.CrossEntropyLoss()
         raise ValueError(f"unrecognized mode {self.mode}.")
 
@@ -124,7 +125,9 @@ class AstLabelPretrain(pl.LightningModule):
         seqs = seq_all(file_path)
         codes = seqs["codes"]
         label_index_df = pd.read_pickle(label_file_path)
-        piece_labels, indexes, sample_ids = label_index_df["label"], label_index_df["index"], label_file_path["sample_id"]
+        piece_labels = label_index_df["label"]
+        indexes = label_index_df["index"]
+        sample_ids = label_index_df["sample_id"]
         piece_full_code = sq.smap(lambda x:codes[x], sample_ids)
         code_pieces = sq.smap(_fetch_sub_code, indexes, piece_full_code)
 
@@ -142,7 +145,7 @@ class AstLabelPretrain(pl.LightningModule):
         return DataLoader(self._preload_data(file_path, label_file_path, batch_size=batch_size, max_len=max_len), batch_size=batch_size, **kwargs)
 
     def val_dataloader(self):
-        return self._load(self.datapath.valid, self.datapath.valid_label)
+        return self._load(self.datapath.valid, self.datapath.valid_label, batch_size=self.hparams["snake_params"].train_batch)
 
     def train_dataloader(self):
         return self._load(self.datapath.train, self.datapath.train_label, batch_size=self.hparams["snake_params"].train_batch, shuffle=True)
@@ -151,14 +154,14 @@ class AstLabelPretrain(pl.LightningModule):
         code, label = batch
         code_embeddings = self(**code)
         loss = self.label_tokenizer.loss_module()(code_embeddings, label)
-        return loss
+        return {"loss": loss}
     
     def validation_step(self, batch, batch_idx):
         return self.training_step(batch, batch_idx)
 
     def validation_epoch_end(self, outputs):
         collate_loss = default_collate(outputs)
-        val_loss = collate_loss.mean()
+        val_loss = collate_loss["loss"].mean()
         return {
             "val_loss": val_loss,
         }

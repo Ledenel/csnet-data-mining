@@ -22,8 +22,10 @@ sample_ids = sq.smap(
     sub_code_indexes, 
     range(0, len(sub_code_indexes))
 )
-pd.DataFrame({
+df = pd.DataFrame({
     "index": chain.from_iterable(sub_code_indexes),
     "sample_id": chain.from_iterable(sample_ids),
     "label": chain.from_iterable(type_label),
-}).to_pickle(snakemake.output[0])
+})
+df = df[df["index"].apply(lambda x:x[0] != x[1])].reset_index()
+df.to_pickle(snakemake.output[0])
