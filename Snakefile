@@ -320,6 +320,7 @@ rule roberta_ast_label_pretrain:
     input:
         train = "data_cache/{lang}_train_{extra}.pkl",
         valid = "data_cache/{lang}_valid_{extra}.pkl",
+        test = "data_cache/{lang}_test_{extra}.pkl",
         train_label = "data_cache/label/filter/{lang}_train_{extra}-{label_type}-label2-minlen16-maxlen128.pkl",
         valid_label = "data_cache/label/filter/{lang}_valid_{extra}-{label_type}-label2-minlen16-maxlen128.pkl",
         label_summary = "stats/{lang}-{extra}-{label_type}-counts.csv",
@@ -329,8 +330,9 @@ rule roberta_ast_label_pretrain:
         label_mode = "least_parent",
         label_type = "{label_type}",
         train_batch = 256,
+        train_max_len = 32,
         seed = 127,
-        fast = False,
+        fast = True,
     resources:
         gpus = 1,
     script:

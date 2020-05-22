@@ -119,6 +119,7 @@ def fetch_code_pieces(codes, sample_ids, indexes):
     return code_pieces
 
 # TODO copied from finetuning.py
+# self.model, self.tokenizer and self.forward(input) is expected to inject.
 class AstLabelPretrain(pl.LightningModule):
     def __init__(self, hparams):
         super().__init__()
@@ -149,10 +150,10 @@ class AstLabelPretrain(pl.LightningModule):
         return DataLoader(self._preload_data(file_path, label_file_path, batch_size=batch_size, max_len=max_len), batch_size=batch_size, **kwargs)
 
     def val_dataloader(self):
-        return self._load(self.datapath.valid, self.datapath.valid_label, batch_size=self.hparams["snake_params"].train_batch)
+        return self._load(self.datapath.valid, self.datapath.valid_label, batch_size=self.hparams["snake_params"].train_batch, max_len=self.hparams["snake_params"].train_max_len)
 
     def train_dataloader(self):
-        return self._load(self.datapath.train, self.datapath.train_label, batch_size=self.hparams["snake_params"].train_batch, shuffle=True)
+        return self._load(self.datapath.train, self.datapath.train_label, batch_size=self.hparams["snake_params"].train_batch, max_len=self.hparams["snake_params"].train_max_len, shuffle=True)
 
     def training_step(self, batch, batch_idx):
         code, label = batch
@@ -172,5 +173,4 @@ class AstLabelPretrain(pl.LightningModule):
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=1e-5) #TODO: Fine-tuning: lr=1e-5
-
 

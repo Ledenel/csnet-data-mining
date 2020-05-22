@@ -27,9 +27,39 @@ class RobertaCodeQuerySoftmax(finetuning.CodeQuerySoftmax):
         _, embedding = self.model(*args, **kwargs)
         return embedding
 
+def get_hparams(snakemake):
+    seed = int(snakemake.params.seed)
 
+    fast = snakemake.params.fast
+#     pct = 0.05 if fast else 1.0
+    test_batch_size = 1000#int(1000 * pct)
 
-if __name__ == "__main__":
+    fast_str = ("_fast" if fast else "")
+    run_name = f"roberta_base_on_{snakemake.wildcards.lang}_{snakemake.wildcards.extra}{fast_str}"
+    wandb_logger = pl.loggers.WandbLogger( 
+        name=run_name,
+        project="csnet-roberta",
+    )
+    config = AutoConfig.from_pretrained("huggingface/CodeBERTa-small-v1", resume_download=True)
+    ckpt = pl.callbacks.ModelCheckpoint(filepath='saved_module/'+run_name+'/{epoch}-mrr{val_loss:.4f}', mode="max")
+    # print(f"{snakemake.config}")
+    if "gpu_ids" in snakemake.config:
+        gpu_ids = ast.literal_eval(str(snakemake.config["gpu_ids"]).strip())
+    else:
+        gpu_ids = 0
+
+    hparams = {
+        "dev_mode": fast,
+        "seed": seed,
+        "roberta_config": config.to_dict(),
+        "datapath": snakemake.input,
+        "test_batch": 1000,
+        "train_batch": 64,
+        "train_max_len": 200,
+    }
+    return hparams
+
+def main(snakemake, model=None):
     seed = int(snakemake.params.seed)
 
     fast = snakemake.params.fast
@@ -70,7 +100,11 @@ if __name__ == "__main__":
         max_epochs=5
         # amp_level='O1',
     )
-    model = RobertaCodeQuerySoftmax(hparams)
+    if model is None:
+        model = RobertaCodeQuerySoftmax(hparams)
     trainer.fit(model)
     # TODO: verify that lighting will pick best model evaluated in validation.
     trainer.test(model)
+
+if __name__ == "__main__":
+    main(snakemake)

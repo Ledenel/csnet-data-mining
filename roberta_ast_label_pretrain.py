@@ -14,6 +14,8 @@ from torch.utils.data._utils.collate import default_collate, default_convert
 from pytorch_lightning.loggers import WandbLogger
 import ast
 from utils import fetch_snakemake_from_latest_run
+import finetuning
+import roberta_eval
 
 class RobertaPretrain(ast_label_pretrain.AstLabelPretrain):
     def __init__(self, hparams):
@@ -27,6 +29,17 @@ class RobertaPretrain(ast_label_pretrain.AstLabelPretrain):
     def forward(self, *args, **kwargs):
         _, embedding = self.model(*args, **kwargs)
         return embedding
+
+class FinetuningRoberta(finetuning.CodeQuerySoftmax):
+    def __init__(self, hparams):
+        super().__init__(hparams)
+        self.model = None
+        self.tokenizer = None
+
+    def forward(self, *args, **kwargs):
+        _, embedding = self.model(*args, **kwargs)
+        return embedding
+
 
 #TODO: copied from roberta_eval.py
 if __name__ == "__main__":
@@ -45,7 +58,6 @@ if __name__ == "__main__":
         gpu_ids = ast.literal_eval(str(snakemake.config["gpu_ids"]).strip())
     else:
         gpu_ids = 0
-#     pct = 0.05 if fast else 1.0
     test_batch_size = 1000#int(1000 * pct)
 
     fast_str = ("_fast" if fast else "")
@@ -82,4 +94,8 @@ if __name__ == "__main__":
     )
     model = RobertaPretrain(hparams)
     trainer.fit(model)
+    finetuning_model = FinetuningRoberta(roberta_eval.get_hparams(snakemake))
+    finetuning_model.model = model.model
+    finetuning_model.tokenizer = model.tokenizer
+    roberta_eval.main(snakemake, finetuning_model)
 
