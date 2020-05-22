@@ -117,7 +117,7 @@ def fetch_code_pieces(codes, sample_ids, indexes):
     piece_full_code = sq.smap(lambda x:codes[x], sample_ids)
     code_pieces = sq.smap(_fetch_sub_code, indexes, piece_full_code)
     return code_pieces
-    
+
 # TODO copied from finetuning.py
 class AstLabelPretrain(pl.LightningModule):
     def __init__(self, hparams):
@@ -144,8 +144,6 @@ class AstLabelPretrain(pl.LightningModule):
         tok_codes = sq.smap(tokenize_plus(self.tokenizer, max_len, True), code_pieces)
         tok_piece_labels = sq.smap(label_tokenize(self.label_tokenizer), piece_labels)
         return sq.collate([tok_codes, tok_piece_labels])
-
-
 
     def _load(self, file_path, label_file_path, batch_size=1000, max_len=None, **kwargs):
         return DataLoader(self._preload_data(file_path, label_file_path, batch_size=batch_size, max_len=max_len), batch_size=batch_size, **kwargs)

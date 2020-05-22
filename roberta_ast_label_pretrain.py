@@ -66,7 +66,7 @@ if __name__ == "__main__":
         "datapath": datapath,
         "test_batch": 1000,
         "train_batch": 64,
-        "train_max_len": 200,
+        "train_max_len": 64,
         "snake_params": params,
     }
     
