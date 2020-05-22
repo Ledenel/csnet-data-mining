@@ -77,7 +77,7 @@ if __name__ == "__main__":
         fast_dev_run=fast,
         logger=wandb_logger,
         checkpoint_callbacks=[ckpt],
-        max_epochs=5
+        max_epochs=1
         # amp_level='O1',
     )
     model = RobertaPretrain(hparams)

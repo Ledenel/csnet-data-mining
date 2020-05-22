@@ -27,5 +27,5 @@ df = pd.DataFrame({
     "sample_id": chain.from_iterable(sample_ids),
     "label": chain.from_iterable(type_label),
 })
-df = df[df["index"].apply(lambda x:x[0] != x[1])].reset_index()
+df = df[df["index"].apply(lambda x:x[0] != x[1])].reset_index(drop=True)
 df.to_pickle(snakemake.output[0])

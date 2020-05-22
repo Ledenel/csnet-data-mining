@@ -40,7 +40,7 @@ rule all:
         # expand("roberta_{lang}_all.done", lang="python|javascript|java|ruby|php|go".split("|")),
         # "stats/ruby-valid_0-combined_label-counts.csv"
         # expand("stats/{lang}-all-{lb}-counts.csv", lang="python|javascript|java|ruby|php|go".split("|"), lb=["type_label", "combined_label"]),
-        expand("roberta_ast_label_{lang}_all-type_label.done", lang="python|javascript|java|ruby|php|go")
+        expand("roberta_ast_label_{lang}_all-type_label.done", lang="python|javascript|java|ruby|php|go".split("|"))
         # directory("model_param/pretrain/go_train_0-tokenizer:size=20000"),
 
 rule extract_language_stat:
@@ -276,18 +276,52 @@ rule roberta_ast_label_dataset:
     input:
         "data_cache/{dataset}.pkl"
     output:
-        "data_cache/{dataset}-{label_type}.pkl"
+        "data_cache/label/{dataset}-{label_type}.pkl"
     params:
         label_type = "{label_type}",
     script:
         "ast_pretrain_label_data_process.py"
 
+rule roberta_ast_label_dataset_filter:
+    input:
+        "data_cache/label/{dataset}-{label_type}.pkl",
+        "data_cache/{dataset}.pkl",
+    output:
+        "data_cache/label/filter/{dataset}-{label_type}-label{label_min}-minlen{min_len}-maxlen{max_len}.pkl"
+    params:
+        label_min = "{label_min}",
+        min_len = "{min_len}",
+        max_len = "{max_len}",
+    run:
+        import pandas as pd
+        from transformers import AutoTokenizer
+        from ast_label_pretrain import fetch_code_pieces
+        import seqtools as sq
+        tokenizer = AutoTokenizer.from_pretrained("huggingface/CodeBERTa-small-v1", resume_download=True)
+        df = pd.read_pickle(input[0])
+        # col_codes = pd.read_pickle(input[1])["code"]
+        # code_col = fetch_code_pieces(col_codes, df["sample_id"], df["index"])
+        # tok_col = sq.smap(tokenizer.tokenize, code_col)
+        # tok_len_col = sq.smap(len, tok_col)
+        print("dataset loaded..")
+        # len_col = pd.Series(index=df.index, data=tok_len_col, name="code_len")
+        len_col = df["index"].apply(lambda x:x[1] - x[0])
+        print("len calculated..")
+        filters = df["label"].apply(lambda t:len(t)) >= int(params.label_min)
+        filters &= len_col >= int(params.min_len)
+        filters &= len_col <= int(params.max_len)
+        print("filter constructed..")
+        df = df[filters]
+        df = df.reset_index(drop=True)
+        df.to_pickle(output[0])
+
+
 rule roberta_ast_label_pretrain:
     input:
         train = "data_cache/{lang}_train_{extra}.pkl",
         valid = "data_cache/{lang}_valid_{extra}.pkl",
-        train_label = "data_cache/{lang}_train_{extra}-{label_type}.pkl",
-        valid_label = "data_cache/{lang}_valid_{extra}-{label_type}.pkl",
+        train_label = "data_cache/label/filter/{lang}_train_{extra}-{label_type}-label2-minlen16-maxlen128.pkl",
+        valid_label = "data_cache/label/filter/{lang}_valid_{extra}-{label_type}-label2-minlen16-maxlen128.pkl",
         label_summary = "stats/{lang}-train_{extra}-{label_type}-counts.csv",
     output:
         done = touch("roberta_ast_label_{lang}_{extra}-{label_type}.done")

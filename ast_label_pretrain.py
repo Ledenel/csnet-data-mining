@@ -113,6 +113,11 @@ def label_tokenize(label_tokenizer, tensor):
 def utf8decode(s: bytes):
     return s.decode('utf-8')
 
+def fetch_code_pieces(codes, sample_ids, indexes):
+    piece_full_code = sq.smap(lambda x:codes[x], sample_ids)
+    code_pieces = sq.smap(_fetch_sub_code, indexes, piece_full_code)
+    return code_pieces
+    
 # TODO copied from finetuning.py
 class AstLabelPretrain(pl.LightningModule):
     def __init__(self, hparams):
@@ -128,8 +133,7 @@ class AstLabelPretrain(pl.LightningModule):
         piece_labels = label_index_df["label"]
         indexes = label_index_df["index"]
         sample_ids = label_index_df["sample_id"]
-        piece_full_code = sq.smap(lambda x:codes[x], sample_ids)
-        code_pieces = sq.smap(_fetch_sub_code, indexes, piece_full_code)
+        code_pieces = fetch_code_pieces(codes, sample_ids, indexes)
 
         ast_label_seqs = seq_from_code_ast(seqs)
         sub_codes, labels = ast_label_seqs["sub_code_pieces"], ast_label_seqs[self.hparams["snake_params"].label_type]
@@ -140,6 +144,8 @@ class AstLabelPretrain(pl.LightningModule):
         tok_codes = sq.smap(tokenize_plus(self.tokenizer, max_len, True), code_pieces)
         tok_piece_labels = sq.smap(label_tokenize(self.label_tokenizer), piece_labels)
         return sq.collate([tok_codes, tok_piece_labels])
+
+
 
     def _load(self, file_path, label_file_path, batch_size=1000, max_len=None, **kwargs):
         return DataLoader(self._preload_data(file_path, label_file_path, batch_size=batch_size, max_len=max_len), batch_size=batch_size, **kwargs)
