@@ -332,7 +332,7 @@ rule roberta_ast_label_pretrain:
         train_batch = 256,
         train_max_len = 32,
         seed = 127,
-        fast = True,
+        fast = False,
     resources:
         gpus = 1,
     script:
