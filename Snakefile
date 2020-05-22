@@ -322,7 +322,7 @@ rule roberta_ast_label_pretrain:
         valid = "data_cache/{lang}_valid_{extra}.pkl",
         train_label = "data_cache/label/filter/{lang}_train_{extra}-{label_type}-label2-minlen16-maxlen128.pkl",
         valid_label = "data_cache/label/filter/{lang}_valid_{extra}-{label_type}-label2-minlen16-maxlen128.pkl",
-        label_summary = "stats/{lang}-train_{extra}-{label_type}-counts.csv",
+        label_summary = "stats/{lang}-{extra}-{label_type}-counts.csv",
     output:
         done = touch("roberta_ast_label_{lang}_{extra}-{label_type}.done")
     params:
@@ -436,6 +436,20 @@ rule merge_language_dataset:
         merged = pd.concat([pd.read_pickle(path) for path in input])
         merged.reset_index(inplace=True)
         merged.to_pickle(output[0])
+
+
+rule merge_language_chunk_dataset:
+    input:
+        lambda wildcards: dataset_format_paths(["dataset_chunk"], "data_cache/{dataset_chunk}.pkl", wildcards),
+        # dataset_format_paths(["dataset_chunk"], "data_cache/{dataset_chunk}.pkl"),
+    output:
+        "data_cache/{language}_{chunk}.pkl"
+    run:
+        import pandas as pd
+        merged = pd.concat([pd.read_pickle(path) for path in input])
+        merged.reset_index(inplace=True)
+        merged.to_pickle(output[0])
+
 
 rule merge_language_dataset_split_part:
     input:
