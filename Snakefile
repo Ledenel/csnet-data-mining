@@ -40,7 +40,7 @@ rule all:
         # expand("roberta_{lang}_all.done", lang="python|javascript|java|ruby|php|go".split("|")),
         # "stats/ruby-valid_0-combined_label-counts.csv"
         # expand("stats/{lang}-all-{lb}-counts.csv", lang="python|javascript|java|ruby|php|go".split("|"), lb=["type_label", "combined_label"]),
-        expand("roberta_ast_label_{lang}_all-type_label.done", lang="python|javascript|java|ruby|php|go".split("|"))
+        expand("roberta_ast_label_{lang}_all-type_label.done", lang="javascript|java|ruby|php|go".split("|"))
         # directory("model_param/pretrain/go_train_0-tokenizer:size=20000"),
 
 rule extract_language_stat:

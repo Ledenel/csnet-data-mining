@@ -97,5 +97,7 @@ if __name__ == "__main__":
     finetuning_model = FinetuningRoberta(roberta_eval.get_hparams(snakemake))
     finetuning_model.model = model.model
     finetuning_model.tokenizer = model.tokenizer
-    roberta_eval.main(snakemake, finetuning_model)
+    roberta_eval.main(snakemake, finetuning_model, hparams_override={
+        "method": "roberta-pretrain-with-ast_label",
+    })
 

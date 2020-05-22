@@ -59,7 +59,7 @@ def get_hparams(snakemake):
     }
     return hparams
 
-def main(snakemake, model=None):
+def main(snakemake, model=None, hparams_override=None):
     seed = int(snakemake.params.seed)
 
     fast = snakemake.params.fast
@@ -88,7 +88,11 @@ def main(snakemake, model=None):
         "test_batch": 1000,
         "train_batch": 64,
         "train_max_len": 200,
+        "method": "roberta-pretrain",
     }
+
+    if hparams_override is not None:
+        hparams.update(hparams_override)
     
     np.random.seed(seed)
     torch.manual_seed(seed)
