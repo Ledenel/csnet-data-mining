@@ -8,7 +8,12 @@ import re
 
 import logging
 
-so_path = pkg_resources.resource_filename(__name__, "build/my-languages.so")
+import os
+so_choice = "build/my-languages.so"
+if os.name == "nt":
+    so_choice = "build/my-languages-win.so"
+
+so_path = pkg_resources.resource_filename(__name__, so_choice)
 # logging.info("language_so_path:{}", so_path)
 
 @lru_cache(10)
