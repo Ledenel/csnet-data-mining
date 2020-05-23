@@ -325,7 +325,8 @@ rule roberta_ast_label_pretrain:
         valid_label = "data_cache/label/filter/{lang}_valid_{extra}-{label_type}-label2-minlen16-maxlen128.pkl",
         label_summary = "stats/{lang}-{extra}-{label_type}-counts.csv",
     output:
-        done = touch("roberta_ast_label_{lang}_{extra}-{label_type}.done")
+        done = touch("roberta_ast_label_{lang}_{extra}-{label_type}.done"),
+        model = directory("pretrained_module/roberta_ast_label_pretrain_on_{lang}_{extra}-{label_type}"),
     params:
         label_mode = "least_parent",
         label_type = "{label_type}",
@@ -337,6 +338,22 @@ rule roberta_ast_label_pretrain:
         gpus = 1,
     script:
         "roberta_ast_label_pretrain.py"
+
+rule roberta_ast_label_finetuning:
+    input:
+        train = "data_cache/{lang}_train_{extra}.pkl",
+        valid = "data_cache/{lang}_valid_{extra}.pkl",
+        test = "data_cache/{lang}_test_{extra}.pkl",
+        model = "pretrained_module/roberta_ast_label_pretrain_on_{lang}_{extra}-{label_type}",
+    output:
+        done = touch("roberta_ast_label_finetuning_{lang}_{extra}-{label_type}.done")
+    params:
+        seed = 127,
+        fast = False,
+    resources:
+        gpus = 1,
+    script:
+        "roberta_eval.py"
 
 rule cache_dataset_chunk_to_pickle:
     input:

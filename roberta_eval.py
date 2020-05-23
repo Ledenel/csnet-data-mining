@@ -62,7 +62,7 @@ def get_hparams(snakemake):
 def main(snakemake, model=None, hparams_override=None):
     seed = int(snakemake.params.seed)
 
-    fast = snakemake.params.fast
+    fast = "dev_fast" in snakemake.config and int(snakemake.config["dev_fast"])
 #     pct = 0.05 if fast else 1.0
     test_batch_size = 1000#int(1000 * pct)
 

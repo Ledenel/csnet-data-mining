@@ -34,7 +34,8 @@ class FinetuningRoberta(finetuning.CodeQuerySoftmax):
     def __init__(self, hparams):
         super().__init__(hparams)
         self.model = None
-        self.tokenizer = None
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            "huggingface/CodeBERTa-small-v1", resume_download=True)
 
     def forward(self, *args, **kwargs):
         _, embedding = self.model(*args, **kwargs)
@@ -51,9 +52,10 @@ if __name__ == "__main__":
     datapath = snakemake.input
     params = snakemake.params
     seed = int(snakemake.params.seed)
-    fast = snakemake.params.fast
+    fast = "dev_fast" in snakemake.config and int(snakemake.config["dev_fast"])
     lang = snakemake.wildcards.lang 
     extra = snakemake.wildcards.extra
+    label_type = snakemake.params.label_type
     if "gpu_ids" in snakemake.config:
         gpu_ids = ast.literal_eval(str(snakemake.config["gpu_ids"]).strip())
     else:
@@ -61,13 +63,14 @@ if __name__ == "__main__":
     test_batch_size = 1000#int(1000 * pct)
 
     fast_str = ("_fast" if fast else "")
-    run_name = f"roberta_ast_label_pretrain_on_{lang}_{extra}{fast_str}"
+    run_name = f"roberta_ast_label_pretrain_on_{lang}_{extra}-{label_type}"
     wandb_logger = pl.loggers.WandbLogger( 
         name=run_name,
         project="csnet-roberta",
     )
     config = AutoConfig.from_pretrained("huggingface/CodeBERTa-small-v1", resume_download=True)
-    ckpt = pl.callbacks.ModelCheckpoint(filepath='saved_module/'+run_name+'/{epoch}-mrr{val_loss:.4f}', mode="min")
+    saved_path = 'pretrained_module/' + run_name + '/{epoch}'
+    ckpt = pl.callbacks.ModelCheckpoint(filepath=saved_path, mode="min")
     # print(f"{snakemake.config}")
 
 
@@ -94,10 +97,14 @@ if __name__ == "__main__":
     )
     model = RobertaPretrain(hparams)
     trainer.fit(model)
-    finetuning_model = FinetuningRoberta(roberta_eval.get_hparams(snakemake))
-    finetuning_model.model = model.model
-    finetuning_model.tokenizer = model.tokenizer
-    roberta_eval.main(snakemake, finetuning_model, hparams_override={
-        "method": "roberta-pretrain-with-ast_label",
-    })
+    trainer.save_checkpoint(saved_path)
+    # load_path = snakemake.input.model
+    # pretrained_model = RobertaPretrain.load_from_checkpoint(load_path)
+    # model = FinetuningRoberta()
+    # finetuning_model = FinetuningRoberta(roberta_eval.get_hparams(snakemake))
+    # finetuning_model.model = model.model
+    # finetuning_model.tokenizer = model.tokenizer
+    # roberta_eval.main(snakemake, finetuning_model, hparams_override={
+    #     "method": "roberta-pretrain-with-ast_label",
+    # })
 
