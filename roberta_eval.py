@@ -89,6 +89,7 @@ def main(snakemake, model=None, hparams_override=None):
         "train_batch": 64,
         "train_max_len": 200,
         "method": "roberta-pretrain",
+        "max_epochs": 5,
     }
 
     if hparams_override is not None:
@@ -101,7 +102,7 @@ def main(snakemake, model=None, hparams_override=None):
         fast_dev_run=fast,
         logger=wandb_logger,
         checkpoint_callbacks=[ckpt],
-        max_epochs=5
+        max_epochs=hparams["max_epochs"]
         # amp_level='O1',
     )
     if model is None:

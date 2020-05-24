@@ -38,4 +38,5 @@ if __name__ == "__main__":
     finetuning_model.model = pretrained_model.model
     roberta_eval.main(snakemake, finetuning_model, hparams_override={
         "method": "roberta-pretrain-with-ast_label",
+        "max_epochs": 1,
     })
