@@ -353,7 +353,7 @@ rule roberta_ast_label_finetuning:
     resources:
         gpus = 1,
     script:
-        "roberta_eval.py"
+        "roberta_eval_finetuning.py"
 
 rule cache_dataset_chunk_to_pickle:
     input:

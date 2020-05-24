@@ -33,7 +33,7 @@ import roberta_eval
 
 if __name__ == "__main__":
     load_path = snakemake.input.model
-    pretrained_model = RobertaPretrain.load_from_checkpoint(load_path)
+    pretrained_model = RobertaPretrain.load_from_checkpoint(f"{load_path}/{{epoch}}")
     finetuning_model = FinetuningRoberta(roberta_eval.get_hparams(snakemake))
     finetuning_model.model = pretrained_model.model
     roberta_eval.main(snakemake, finetuning_model, hparams_override={
