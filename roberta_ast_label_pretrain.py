@@ -68,6 +68,7 @@ class AstLabelPretrain(pl.LightningModule):
         self.hparams = hparams
         self.datapath = hparams["datapath"]
         self.label_tokenizer = LabelTokenizer(self.datapath.label_summary, hparams["roberta_config"]["hidden_size"], mode=hparams["snake_params"].label_mode)
+        self.loss_module = self.label_tokenizer.loss_module()
 
     def _preload_data(self, file_path, label_file_path, batch_size=1000, max_len=None):
         seqs = seq_all(file_path)
@@ -105,7 +106,7 @@ class AstLabelPretrain(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         code, label = batch
         code_embeddings = self(**code)
-        loss = self.label_tokenizer.loss_module()(code_embeddings, label)
+        loss = self.loss_module(code_embeddings, label)
         return {"loss": loss}
 
     def validation_step(self, batch, batch_idx):

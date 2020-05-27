@@ -330,7 +330,7 @@ rule roberta_ast_label_pretrain:
     params:
         label_mode = "least_parent",
         label_type = "{label_type}",
-        train_batch = 256,
+        train_batch = 64,
         train_max_len = 32,
         seed = 127,
         fast = False,

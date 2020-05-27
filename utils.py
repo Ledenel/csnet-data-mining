@@ -44,22 +44,22 @@ def fetch_snakemake_from_latest_run(script_path):
     import os
     _, file_name = os.path.split(script_path)
     script_regex = re.compile(rf'^.snakemake/scripts/tmp.+\.{file_name}$')
-    snakemake_header_mark = "######## Snakemake header ########"
-    snakemake_origin_mark = "######## Original script #########"
+    snakemake_mark = re.compile(r"^#+ .+ #+$")
     script_versions = glob.glob(".snakemake/scripts/*.py")
     script_versions = [script for script in script_versions if script_regex.match(script)]
     script_versions.sort(key=lambda path: os.stat(path).st_mtime)
     latest_script_path = script_versions[-1]
     with open(latest_script_path, "r") as f:
         for line in f:
-            if line.strip() == snakemake_header_mark:
+            if snakemake_mark.match(line.strip()): #snakemake header start
                 break
         header_content = ""
         for line in f:
-            if line.strip() == snakemake_origin_mark:
+            if snakemake_mark.match(line.strip()): #origin script start
                 break
             else:
                 header_content += f"{line}\n"
+        print("HEADER:\n", header_content)
         prepared_global_context = {"__file__":script_path}
         prepared_local_context = {}
         context = exec(header_content, prepared_global_context, prepared_local_context)
