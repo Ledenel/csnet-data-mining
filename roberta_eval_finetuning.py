@@ -37,7 +37,8 @@ if __name__ == "__main__":
         "method": "roberta-pretrain-with-ast_label",
         "max_epochs": 5,
     }
-    pretrained_model = RobertaPretrain.load_from_checkpoint(f"{load_path}/{{epoch}}")
+    pretrained_model = RobertaPretrain.load_from_checkpoint(load_path)
+    override_dict["pretrain"] = pretrained_model.hparams
     finetuning_model = FinetuningRoberta(roberta_eval.get_hparams(snakemake, hparams_override=override_dict))
     finetuning_model.model = pretrained_model.model
     roberta_eval.main(snakemake, finetuning_model, hparams_override=override_dict)

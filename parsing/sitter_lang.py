@@ -49,4 +49,4 @@ def get_available_languages():
 def get_language(name):
     return Language(so_path,name)
 
-logging.info(f"available {get_available_languages()}")
+# logging.info(f"available {get_available_languages()}")

@@ -1,11 +1,6 @@
-from parsing.sitter_lang import get_parser
-from tree_sitter import Node, TreeCursor
+from tree_sitter import Node
 import seqtools as sq
-import pytorch_lightning as pl
-import pandas as pd
-from torch.utils.data.dataloader import DataLoader
-from dataset_seq import seq_all
-from torch.utils.data._utils.collate import default_collate, default_convert
+
 
 def node_cursor_iter(cursor):
     yield cursor.copy()
@@ -56,7 +51,6 @@ def _fetch_sub_code(index, code_str):
     start, end = index
     return code_str.encode('utf-8')[start:end].decode('utf-8')
 
-from finetuning import tokenize_plus
 
 def seq_from_code_ast(_seq_dict):
     _code_bytes = _seq_dict["code_bytes"]
@@ -84,25 +78,6 @@ def seq_from_code_ast(_seq_dict):
     # print(_dict_return.keys())
     return _dict_return
 
-import torch
-
-class LabelTokenizer:
-    def __init__(self, path, mode="least_parent"):
-        df = pd.read_csv(path, header=[0,1])
-        self.mapper = {v:i for i,v in enumerate(df[df.columns[0]])}
-        self.mode = mode
-
-    def loss_module(self):
-        if self.mode == "least_parent":
-            return torch.nn.CrossEntropyLoss()
-        raise ValueError(f"unrecognized mode {self.mode}.")
-
-    def least_parent_tensor(self, labels):
-        return torch.tensor(self.mapper[labels[0]])
-            
-    def process(self, labels):
-        mode_func = getattr(self, f"{self.mode}_tensor")
-        return mode_func(labels)
 
 from pymonad.Reader import curry
 
@@ -120,57 +95,4 @@ def fetch_code_pieces(codes, sample_ids, indexes):
 
 # TODO copied from finetuning.py
 # self.model, self.tokenizer and self.forward(input) is expected to inject.
-class AstLabelPretrain(pl.LightningModule):
-    def __init__(self, hparams):
-        super().__init__()
-        self.hparams = hparams
-        self.datapath = hparams["datapath"]
-        self.label_tokenizer = LabelTokenizer(self.datapath.label_summary, mode=hparams["snake_params"].label_mode)
-        
-    def _preload_data(self, file_path, label_file_path, batch_size=1000, max_len=None):
-        seqs = seq_all(file_path)
-        codes = seqs["codes"]
-        label_index_df = pd.read_pickle(label_file_path)
-        piece_labels = label_index_df["label"]
-        indexes = label_index_df["index"]
-        sample_ids = label_index_df["sample_id"]
-        code_pieces = fetch_code_pieces(codes, sample_ids, indexes)
-
-        ast_label_seqs = seq_from_code_ast(seqs)
-        sub_codes, labels = ast_label_seqs["sub_code_pieces"], ast_label_seqs[self.hparams["snake_params"].label_type]
-        
-        #TODO try different sample strategy for sub_codes.
-        # code_pieces, piece_labels = sq.concatenate(sub_codes), sq.concatenate(labels)
-        # code_pieces = sq.smap(utf8decode, code_pieces)
-        tok_codes = sq.smap(tokenize_plus(self.tokenizer, max_len, True), code_pieces)
-        tok_piece_labels = sq.smap(label_tokenize(self.label_tokenizer), piece_labels)
-        return sq.collate([tok_codes, tok_piece_labels])
-
-    def _load(self, file_path, label_file_path, batch_size=1000, max_len=None, **kwargs):
-        return DataLoader(self._preload_data(file_path, label_file_path, batch_size=batch_size, max_len=max_len), batch_size=batch_size, **kwargs)
-
-    def val_dataloader(self):
-        return self._load(self.datapath.valid, self.datapath.valid_label, batch_size=self.hparams["snake_params"].train_batch, max_len=self.hparams["snake_params"].train_max_len)
-
-    def train_dataloader(self):
-        return self._load(self.datapath.train, self.datapath.train_label, batch_size=self.hparams["snake_params"].train_batch, max_len=self.hparams["snake_params"].train_max_len, shuffle=True)
-
-    def training_step(self, batch, batch_idx):
-        code, label = batch
-        code_embeddings = self(**code)
-        loss = self.label_tokenizer.loss_module()(code_embeddings, label)
-        return {"loss": loss}
-    
-    def validation_step(self, batch, batch_idx):
-        return self.training_step(batch, batch_idx)
-
-    def validation_epoch_end(self, outputs):
-        collate_loss = default_collate(outputs)
-        val_loss = collate_loss["loss"].mean()
-        return {
-            "val_loss": val_loss,
-        }
-
-    def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=1e-5) #TODO: Fine-tuning: lr=1e-5
 

@@ -326,7 +326,7 @@ rule roberta_ast_label_pretrain:
         label_summary = "stats/{lang}-{extra}-{label_type}-counts.csv",
     output:
         done = touch("roberta_ast_label_{lang}_{extra}-{label_type}.done"),
-        model = directory("pretrained_module/roberta_ast_label_pretrain_on_{lang}_{extra}-{label_type}"),
+        model = "pretrained_module/roberta_ast_label_pretrain_on_{lang}_{extra}-{label_type}/model.ckpt",
     params:
         label_mode = "least_parent",
         label_type = "{label_type}",
@@ -344,7 +344,7 @@ rule roberta_ast_label_finetuning:
         train = "data_cache/{lang}_train_{extra}.pkl",
         valid = "data_cache/{lang}_valid_{extra}.pkl",
         test = "data_cache/{lang}_test_{extra}.pkl",
-        model = "pretrained_module/roberta_ast_label_pretrain_on_{lang}_{extra}-{label_type}",
+        model = "pretrained_module/roberta_ast_label_pretrain_on_{lang}_{extra}-{label_type}/model.ckpt",
     output:
         done = touch("roberta_ast_label_finetuning_{lang}_{extra}-{label_type}.done")
     params:
