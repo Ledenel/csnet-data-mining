@@ -383,7 +383,7 @@ rule cache_dataset_chunk_to_pickle:
     input:
         "data/{language}/final/jsonl/{split}/{language}_{split}_{chunk}.jsonl.gz"
     output:
-        out = "data_cache/{language}_{split}_{chunk}.pkl",
+        out = temp("data_cache/{language}_{split}_{chunk}.pkl"),
     run:
         import pandas as pd
         
