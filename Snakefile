@@ -315,6 +315,21 @@ rule roberta_ast_label_dataset_filter:
         df = df.reset_index(drop=True)
         df.to_pickle(output[0])
 
+rule roberta_ast_label_plot:
+    input:
+        "data_cache/label/{dataset}-{label_type}.pkl"
+    output:
+        "stats/label/{dataset}-{label_type}_len_plot.png"
+    run:
+        import pandas as pd
+        import matplotlib.pyplot as plt
+        df = pd.read_pickle(input[0])
+        index_len = df["index"].apply(lambda t: t[1]-t[0])
+        label_len = df["label"].apply(len)
+        df["index_len"] = index_len
+        df["label_len"] = label_len
+        df.plot.hexbin(x='index_len', y='label_len', gridsize=25)
+        plt.savefig(output[0])
 
 rule roberta_ast_label_pretrain:
     input:

@@ -1,4 +1,8 @@
+import bisect
+
 import pandas as pd
+from transformers import PreTrainedTokenizer, GPT2Tokenizer
+
 
 def get_columns_by_all_func(df, func, head_sample=5):
     if head_sample is not None:
@@ -65,3 +69,14 @@ def fetch_snakemake_from_latest_run(script_path):
         context = exec(header_content, prepared_global_context, prepared_local_context)
         snakemake = prepared_local_context['snakemake']
     return snakemake
+
+import itertools
+
+def tokenized_index(tokenizer: GPT2Tokenizer, text):
+    token_list = tokenizer.tokenize(text)
+    text_bytes = [bytes([tokenizer.byte_decoder[c] for c in text]) for text in token_list]
+    token_indexes = list(itertools.accumulate(map(len, text_bytes)))
+    return token_indexes
+
+def byte_index_to_token_index(byte_index: int, tokenized_index):
+    return bisect.bisect_right(tokenized_index, byte_index)
