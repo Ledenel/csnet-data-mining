@@ -323,12 +323,21 @@ rule roberta_ast_label_plot:
     run:
         import pandas as pd
         import matplotlib.pyplot as plt
+        import numpy as np
         df = pd.read_pickle(input[0])
         index_len = df["index"].apply(lambda t: t[1]-t[0])
         label_len = df["label"].apply(len)
         df["index_len"] = index_len
         df["label_len"] = label_len
-        df.plot.hexbin(x='index_len', y='label_len', gridsize=25)
+        fig = plt.gcf()
+        fig.set_size_inches(18,10)
+        df.plot.hexbin(
+            y='index_len',
+            yscale='log',
+            x='label_len',
+            bins='log',
+            gridsize=50,
+        )
         plt.savefig(output[0])
 
 rule roberta_ast_label_pretrain:
