@@ -352,7 +352,7 @@ rule roberta_ast_label_pretrain:
         done = touch("roberta_ast_label_{lang}_{extra}-{label_type}.done"),
         model = "pretrained_module/roberta_ast_label_pretrain_on_{lang}_{extra}-{label_type}/model.ckpt",
     params:
-        label_mode = "least_parent",
+        label_mode = "all_except_one_parent",
         label_type = "{label_type}",
         train_batch = 64,
         train_max_len = 32,

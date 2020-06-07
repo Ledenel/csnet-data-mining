@@ -41,6 +41,22 @@ class LinearLabelSoftmax(torch.nn.Module):
         self.loss.backward(retain_variables=retain_variables)
 
 
+class LinearAllLabelSigmoid(torch.nn.Module):
+    def __init__(self, embedding_len, label_len):
+        super().__init__()
+        self.loss = torch.nn.BCEWithLogitsLoss()
+        self.linear = torch.nn.Linear(embedding_len, label_len)
+
+    def forward(self, embedding, label):
+        return self.loss(
+            self.linear(embedding),
+            label
+        )
+
+    def backward(self, retain_variables=True):
+        self.loss.backward(retain_variables=retain_variables)
+
+
 class LabelTokenizer:
     def __init__(self, path, embedding_len, mode="least_parent"):
         df = pd.read_csv(path, header=[0, 1])
@@ -48,14 +64,25 @@ class LabelTokenizer:
         self.mode = mode
         self.embedding_len = embedding_len
         self.single_softmax = LinearLabelSoftmax(embedding_len, len(self.mapper))
+        self.all_sigmoid = LinearAllLabelSigmoid(embedding_len, len(self.mapper))
 
     def loss_module(self):
         if self.mode == "least_parent":
             return self.single_softmax
+        elif self.mode == "all_except_one_parent":
+            return self.all_sigmoid
         raise ValueError(f"unrecognized mode {self.mode}.")
 
     def least_parent_tensor(self, labels):
         return torch.tensor(self.mapper[labels[0]])
+
+    def all_except_one_parent_tensor(self, labels):
+        with torch.no_grad():
+            label_tensor = torch.zeros(len(self.mapper))
+            labels = labels[:-1]
+            for label in labels:
+                label_tensor[self.mapper[label]] = 1
+            return label_tensor
 
     def process(self, labels):
         mode_func = getattr(self, f"{self.mode}_tensor")
@@ -67,7 +94,8 @@ class AstLabelPretrain(pl.LightningModule):
         super().__init__()
         self.hparams = hparams
         self.datapath = hparams["datapath"]
-        self.label_tokenizer = LabelTokenizer(self.datapath.label_summary, hparams["roberta_config"]["hidden_size"], mode=hparams["snake_params"].label_mode)
+        self.label_tokenizer = LabelTokenizer(self.datapath.label_summary, hparams["roberta_config"]["hidden_size"],
+                                              mode=hparams["snake_params"].label_mode)
         self.loss_module = self.label_tokenizer.loss_module()
 
     def _preload_data(self, file_path, label_file_path, batch_size=1000, max_len=None):
@@ -176,7 +204,7 @@ if __name__ == "__main__":
         project="csnet-roberta",
     )
     config = AutoConfig.from_pretrained("huggingface/CodeBERTa-small-v1", resume_download=True)
-    saved_path = snakemake.output.model #'pretrained_module/' + run_name + '/{epoch}'
+    saved_path = snakemake.output.model  # 'pretrained_module/' + run_name + '/{epoch}'
     ckpt = pl.callbacks.ModelCheckpoint(filepath=saved_path, mode="min")
     # print(f"{snakemake.config}")
 
