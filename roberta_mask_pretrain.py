@@ -132,6 +132,10 @@ class RobertaMaskPretrain(MaskPretrain):
 
         self.tokenizer = AutoTokenizer.from_pretrained(
             "huggingface/CodeBERTa-small-v1", resume_download=True)
+        #FIXME: using mask lm head in pretraining, but using automodel in finetuning.
+
+        # self.lm_model = AutoModel.from_pretrained(
+        #     "huggingface/CodeBERTa-small-v1", resume_download=True, config=hparams["roberta_config"])
         self.model = AutoModelWithLMHead.from_pretrained(
             "huggingface/CodeBERTa-small-v1", resume_download=True, config=hparams["roberta_config"])
 
