@@ -379,6 +379,40 @@ rule roberta_ast_label_finetuning:
     script:
         "roberta_eval_finetuning.py"
 
+rule roberta_mask_pretrain:
+    input:
+        train = "data_cache/{lang}_train_{extra}.pkl",
+        valid = "data_cache/{lang}_valid_{extra}.pkl",
+        test = "data_cache/{lang}_test_{extra}.pkl",
+    output:
+        done = touch("roberta_mask_{lang}_{extra}.done"),
+        model = "pretrained_module/roberta_ast_mask_on_{lang}_{extra}/model.ckpt",
+    params:
+        train_batch = 64,
+        train_max_len = 32,
+        seed = 127,
+        fast = False,
+    resources:
+        gpus = 1,
+    script:
+        "roberta_mask_pretrain.py"
+
+rule roberta_mask_finetuning:
+    input:
+        train = "data_cache/{lang}_train_{extra}.pkl",
+        valid = "data_cache/{lang}_valid_{extra}.pkl",
+        test = "data_cache/{lang}_test_{extra}.pkl",
+        model = "pretrained_module/roberta_ast_mask_on_{lang}_{extra}/model.ckpt",
+    output:
+        done = touch("roberta_mask_finetuning_{lang}_{extra}.done")
+    params:
+        seed = 127,
+        fast = False,
+    resources:
+        gpus = 1,
+    script:
+        "roberta_eval_finetuning.py"
+
 rule cache_dataset_chunk_to_pickle:
     input:
         "data/{language}/final/jsonl/{split}/{language}_{split}_{chunk}.jsonl.gz"
