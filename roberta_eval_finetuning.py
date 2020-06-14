@@ -14,6 +14,7 @@ from pytorch_lightning.loggers import WandbLogger
 import ast
 import finetuning
 from roberta_ast_label_pretrain import FinetuningRoberta, RobertaPretrain
+from roberta_mask_pretrain import RobertaMaskPretrain, FinetuningMaskRoberta
 
 
 class RobertaCodeQuerySoftmax(finetuning.CodeQuerySoftmax):
@@ -37,8 +38,12 @@ if __name__ == "__main__":
         "method": "roberta-pretrain-with-ast_label",
         "max_epochs": 5,
     }
-    pretrained_model = RobertaPretrain.load_from_checkpoint(load_path)
+    model_cls_name = snakemake.params.get("model_pretrain_cls", "RobertaPretrain")
+    model_finetuning_name = snakemake.params.get("model_finetuning_cls", "FinetuningRoberta")
+    pretrain_cls = globals()[model_cls_name]
+    fintuning_cls = globals()[model_finetuning_name]
+    pretrained_model = pretrain_cls.load_from_checkpoint(load_path)
     override_dict["pretrain"] = pretrained_model.hparams
-    finetuning_model = FinetuningRoberta(roberta_eval.get_hparams(snakemake, hparams_override=override_dict))
+    finetuning_model = fintuning_cls(roberta_eval.get_hparams(snakemake, hparams_override=override_dict))
     finetuning_model.model = pretrained_model.model
     roberta_eval.main(snakemake, finetuning_model, hparams_override=override_dict)

@@ -107,9 +107,7 @@ class MaskPretrain(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         code, labels = batch
-        prediction_scores = self(**code)
-        loss_fct = torch.nn.CrossEntropyLoss()
-        masked_lm_loss = loss_fct(prediction_scores.view(-1, self.model.config.vocab_size), labels.view(-1))
+        masked_lm_loss = self(**code, masked_lm_labels=labels)
         return {"loss": masked_lm_loss}
 
     def validation_step(self, batch, batch_idx):
@@ -152,7 +150,7 @@ class FinetuningMaskRoberta(finetuning.CodeQuerySoftmax):
             "huggingface/CodeBERTa-small-v1", resume_download=True)
 
     def forward(self, *args, **kwargs):
-        _, embedding = self.model(*args, **kwargs)
+        _, embedding = self.model.roberta(*args, **kwargs)
         return embedding
 
 
@@ -177,7 +175,7 @@ if __name__ == "__main__":
     test_batch_size = 1000  # int(1000 * pct)
 
     fast_str = ("_fast" if fast else "")
-    run_name = f"roberta_ast_label_pretrain_on_{lang}_{extra}-{label_type}"
+    run_name = f"roberta_mask_pretrain_on_{lang}_{extra}-{label_type}"
     wandb_logger = pl.loggers.WandbLogger(
         name=run_name,
         project="csnet-roberta",
@@ -187,10 +185,11 @@ if __name__ == "__main__":
     ckpt = pl.callbacks.ModelCheckpoint(filepath=saved_path, mode="min")
     # print(f"{snakemake.config}")
 
+    roberta_config = config.to_dict()
     hparams = {
         "dev_mode": fast,
         "seed": seed,
-        "roberta_config": config.to_dict(),
+        "roberta_config": roberta_config,
         "datapath": datapath,
         "test_batch": 1000,
         "train_batch": 64,

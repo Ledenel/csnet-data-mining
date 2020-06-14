@@ -406,6 +406,8 @@ rule roberta_mask_finetuning:
     output:
         done = touch("roberta_mask_finetuning_{lang}_{extra}.done")
     params:
+        model_pretrain_cls = "RobertaMaskPretrain",
+        model_finetuning_cls = "FinetuningMaskRoberta",
         seed = 127,
         fast = False,
     resources:
