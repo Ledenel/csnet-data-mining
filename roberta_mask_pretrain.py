@@ -42,10 +42,11 @@ def tokenize_pair_plus(tokenizer, max_len, pad_to_max_length, text, text_pair):
     return default_convert(encode_dict)
     # move tokenize items into prepare_data / test_dataloader, let batch tensors stay on cuda.
 
+
 @curry
 def random_mask(all_vocab, tok_tensor: torch.Tensor):
     with torch.no_grad():
-        #FIXME: add special token mask step at first. do not pick special token as mask.
+        # FIXME: add special token mask step at first. do not pick special token as mask.
         vocab = torch.tensor(all_vocab)
         random_toks = vocab[torch.randint(len(vocab), tok_tensor.shape)]
         mask_toks = torch.tensor(tok_tensor).fill_(-100)
@@ -69,6 +70,7 @@ def random_mask(all_vocab, tok_tensor: torch.Tensor):
             tok_tensor
         )
 
+
 class MaskPretrain(pl.LightningModule):
     def __init__(self, hparams):
         super().__init__()
@@ -84,7 +86,7 @@ class MaskPretrain(pl.LightningModule):
             tokenize_pair_plus(
                 self.tokenizer, max_len, True
             ), docs, codes)
-        #FIXME: here <PAD> included for random mask.
+        # FIXME: here <PAD> included for random mask.
         tok_only = sq.smap(lambda x: x["input_ids"], tok_both)
         tok_piece_labels = sq.smap(
             random_mask(list(self.tokenizer.get_vocab().values())),
@@ -131,12 +133,16 @@ class RobertaMaskPretrain(MaskPretrain):
 
         self.tokenizer = AutoTokenizer.from_pretrained(
             "huggingface/CodeBERTa-small-v1", resume_download=True)
-        #FIXME: using mask lm head in pretraining, but using automodel in finetuning.
+        # FIXME: using mask lm head in pretraining, but using automodel in finetuning.
 
         # self.lm_model = AutoModel.from_pretrained(
         #     "huggingface/CodeBERTa-small-v1", resume_download=True, config=hparams["roberta_config"])
-        self.model = AutoModelWithLMHead.from_pretrained(
-            "huggingface/CodeBERTa-small-v1", resume_download=True, config=hparams["roberta_config"])
+
+        self.model = AutoModelWithLMHead.from_config(
+            AutoConfig.from_pretrained(
+                "huggingface/CodeBERTa-small-v1", resume_download=True, config=hparams["roberta_config"]
+            )
+        )
 
     def forward(self, *args, **kwargs):
         tup = self.model(*args, **kwargs)
@@ -205,7 +211,7 @@ if __name__ == "__main__":
         fast_dev_run=fast,
         logger=wandb_logger,
         checkpoint_callbacks=[ckpt],
-        max_epochs=1
+        max_epochs=5
         # amp_level='O1',
     )
     model = RobertaMaskPretrain(hparams)
