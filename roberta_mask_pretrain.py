@@ -45,6 +45,7 @@ def tokenize_pair_plus(tokenizer, max_len, pad_to_max_length, text, text_pair):
 @curry
 def random_mask(all_vocab, tok_tensor: torch.Tensor):
     with torch.no_grad():
+        #FIXME: add special token mask step at first. do not pick special token as mask.
         vocab = torch.tensor(all_vocab)
         random_toks = vocab[torch.randint(len(vocab), tok_tensor.shape)]
         mask_toks = torch.tensor(tok_tensor).fill_(-100)
