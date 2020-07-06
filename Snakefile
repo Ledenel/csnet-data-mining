@@ -368,7 +368,7 @@ rule roberta_ast_label_finetuning:
         train = "data_cache/{lang}_train_{extra}.pkl",
         valid = "data_cache/{lang}_valid_{extra}.pkl",
         test = "data_cache/{lang}_test_{extra}.pkl",
-        model = "pretrained_module/roberta_ast_label_pretrain_on_{lang}_{extra}-{label_type}/model.ckpt",
+        model = ancient("pretrained_module/roberta_ast_label_pretrain_on_{lang}_{extra}-{label_type}/model.ckpt"),
     output:
         done = touch("roberta_ast_label_finetuning_{lang}_{extra}-{label_type}.done")
     params:
@@ -402,7 +402,7 @@ rule roberta_mask_finetuning:
         train = "data_cache/{lang}_train_{extra}.pkl",
         valid = "data_cache/{lang}_valid_{extra}.pkl",
         test = "data_cache/{lang}_test_{extra}.pkl",
-        model = "pretrained_module/roberta_ast_mask_on_{lang}_{extra}/model.ckpt",
+        model = ancient("pretrained_module/roberta_ast_mask_on_{lang}_{extra}/model.ckpt"),
     output:
         done = touch("roberta_mask_finetuning_{lang}_{extra}.done")
     params:
