@@ -17,3 +17,5 @@ wandb
 transformers
 pytorch-lightning
 matplotlib
+jupyter
+
