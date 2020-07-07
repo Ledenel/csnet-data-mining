@@ -358,3 +358,4 @@ lightning_logs
 
 wandb/*
 csnet-roberta/*
+/pretrained_module/*
