@@ -1,3 +1,5 @@
+import os
+
 import pytorch_lightning as pl
 from torch.utils.data.dataloader import DataLoader
 from transformers import AutoTokenizer, AutoModel, AutoModelWithLMHead, AutoConfig
@@ -33,6 +35,11 @@ def get_hparams(snakemake, hparams_override=None):
 
 def main(snakemake, model=None, hparams_override=None):
     hparams, run_name = pre_configure(hparams_override, snakemake)
+    if model is None:
+        hparams["pretrain_name"] = "RawRobertaBase"
+        hparams["finetuning_name"] = "RobertaCodeQuerySoftmax"
+    pretrain_name = hparams["pretrain_name"]
+    finetuning_name = hparams["finetuning_name"]
 
     wandb_logger = pl.loggers.WandbLogger(
         name=run_name,
@@ -56,6 +63,9 @@ def main(snakemake, model=None, hparams_override=None):
     trainer.fit(model)
     # TODO: verify that lighting will pick best model evaluated in validation.
     trainer.test(model)
+    save_path = f"finetuning_module/{pretrain_name}-{finetuning_name}"
+    os.makedirs(save_path, exist_ok=True)
+    trainer.save_checkpoint(f"{save_path}/model.ckpt")
 
 
 def pre_configure(hparams_override, snakemake):

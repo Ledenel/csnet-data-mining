@@ -40,6 +40,8 @@ if __name__ == "__main__":
     }
     model_cls_name = snakemake.params.get("model_pretrain_cls", "RobertaPretrain")
     model_finetuning_name = snakemake.params.get("model_finetuning_cls", "FinetuningRoberta")
+    override_dict["pretrain_name"] = model_cls_name
+    override_dict["finetuning_name"] = model_finetuning_name
     pretrain_cls = globals()[model_cls_name]
     fintuning_cls = globals()[model_finetuning_name]
     pretrained_model = pretrain_cls.load_from_checkpoint(load_path)

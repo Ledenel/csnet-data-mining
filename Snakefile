@@ -261,7 +261,7 @@ rule roberta_train:
         train = "data_cache/{lang}_train_{extra}.pkl",
         valid = "data_cache/{lang}_valid_{extra}.pkl",
         test = "data_cache/{lang}_test_{extra}.pkl",
-        fast_dev = "bert_scratch_{lang}_{extra}_fast.done",
+        # fast_dev = "bert_scratch_{lang}_{extra}_fast.done",
     output:
         done = touch("roberta_{lang}_{extra}.done")
     params:
