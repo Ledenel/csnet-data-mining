@@ -47,10 +47,10 @@ def fetch_snakemake_from_latest_run(script_path):
     import re
     import os
     _, file_name = os.path.split(script_path)
-    script_regex = re.compile(rf'^.snakemake/scripts/tmp.+\.{file_name}$')
+    script_regex = re.compile(rf'^tmp.+\.{file_name}$')
     snakemake_mark = re.compile(r"^#+ .+ #+$")
     script_versions = glob.glob(".snakemake/scripts/*.py")
-    script_versions = [script for script in script_versions if script_regex.match(script)]
+    script_versions = [script for script in script_versions if script_regex.match(os.path.basename(script))]
     script_versions.sort(key=lambda path: os.stat(path).st_mtime)
     latest_script_path = script_versions[-1]
     with open(latest_script_path, "r") as f:

@@ -19,4 +19,4 @@ transformers
 pytorch-lightning
 matplotlib
 jupyter
-
+boto3
