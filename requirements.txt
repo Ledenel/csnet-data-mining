@@ -21,3 +21,4 @@ matplotlib
 jupyter
 boto3
 xarray
+scipy

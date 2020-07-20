@@ -224,8 +224,8 @@ if __name__ == "__main__":
     trainer = pl.Trainer(
         gpus=gpu_ids,
         fast_dev_run=fast,
-        logger=wandb_logger,
-        checkpoint_callbacks=[ckpt],
+        # logger=wandb_logger,
+        # checkpoint_callback=[ckpt],
         max_epochs=1
         # amp_level='O1',
     )
