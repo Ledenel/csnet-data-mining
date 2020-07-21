@@ -142,6 +142,19 @@ class MyBertModel(nn.Module):
         )
 
     def _layer(self):
+        return named_sequential(
+            attention=self._attention(),
+            intermediate=AppendInput(self._intermediate),
+            output=self._layer_output(),
+        )
+
+    def _attention(self):
+        pass
+
+    def _intermediate(self):
+        pass
+
+    def _layer_output(self): #(intermediate_output, attention_output)
         pass
 
     def _pooler(self, hidden_size):
@@ -150,6 +163,7 @@ class MyBertModel(nn.Module):
             dense=nn.Linear(hidden_size, hidden_size),
             activation=nn.Tanh(),
         )
+
 
 class SeqContainer(nn.Module):
     def __init__(self):
@@ -168,6 +182,7 @@ class SeqContainer(nn.Module):
 
     def forward(self, input):
         return self.multi_layer(input)
+
 
 if __name__ == '__main__':
     model = SeqContainer()
