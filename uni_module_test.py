@@ -154,8 +154,17 @@ class MyBertModel(nn.Module):
     def _intermediate(self):
         pass
 
-    def _layer_output(self): #(intermediate_output, attention_output)
-        pass
+    def _layer_output(self, intermediate_size, hidden_size, hidden_dropout_prob,
+                      layer_norm_eps):  # (intermediate_output, attention_output)
+        return named_sequential(
+            # FIXME: expected dense dropout, actual dense_transform.dense dense_trasform.dropout
+            dense_transform=Residual(named_sequential(
+                dense=nn.Linear(intermediate_size, hidden_size),
+                # FIXME: expected LayerNorm, actual layer_norm
+                dropout=nn.Dropout(hidden_dropout_prob),
+            )),
+            layer_norm=nn.LayerNorm(hidden_size, eps=layer_norm_eps),
+        )
 
     def _pooler(self, hidden_size):
         return named_sequential(
