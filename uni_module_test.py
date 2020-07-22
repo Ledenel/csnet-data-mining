@@ -98,6 +98,16 @@ class AppendInput(nn.Module):
         return [self.module(x), x]
 
 
+class SequentialWithInput(nn.Sequential):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def forward(self, x):
+        for module in self:
+            x = [module(x), x]
+        return x
+
+
 class MyBertModel(nn.Module):
     def __init__(self, config):
         super().__init__()
@@ -144,7 +154,7 @@ class MyBertModel(nn.Module):
     def _layer(self):
         return named_sequential(
             attention=self._attention(),
-            intermediate=AppendInput(self._intermediate),
+            intermediate=AppendInput(self._intermediate()),
             output=self._layer_output(),
         )
 
