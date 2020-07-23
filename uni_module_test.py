@@ -73,7 +73,7 @@ class ScatterList(nn.ModuleList):
         return [func(x) for func, x in zip(self, scatter_list)]
 
 
-def satisfy_args(args, func, kwargs):
+def satisfy_args(func, args, kwargs):
     sig = inspect.signature(func)
     bound_args = sig.bind_partial(*args)
     picked_kwargs = {}
@@ -109,7 +109,7 @@ class FillDefaultDict(nn.ModuleDict):
             is_dirty = False
             for key, func in self.items():
                 if key not in kwargs:
-                    bound_args, picked_kwargs = satisfy_args(args, func, kwargs)
+                    bound_args, picked_kwargs = satisfy_args(func, args, kwargs)
                     if picked_kwargs is not None:
                         kwargs[key] = func(*bound_args, **picked_kwargs)
                         is_dirty = True
