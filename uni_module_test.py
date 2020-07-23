@@ -4,6 +4,7 @@ import torch
 from torch import nn, tensor
 import inspect
 
+
 def named_sequential(**kwargs):
     return nn.Sequential(OrderedDict(kwargs))
 
@@ -82,17 +83,21 @@ def satisfy_args(args, func, kwargs):
                 and param.kind is not inspect.Parameter.POSITIONAL_ONLY:
             if param.name in kwargs:
                 picked_kwargs[param.name] = kwargs[param.name]
-            elif param.default is not inspect.Parameter.empty:
-                return bound_args.arguments, None
-    return bound_args.arguments, picked_kwargs
+            elif param.default is inspect.Parameter.empty:
+                return bound_args.args, None
+    for name in bound_args.kwargs:
+        if name in picked_kwargs:
+            raise TypeError("multiple values for argument '{}'".format(name))
+    picked_kwargs.update(bound_args.kwargs)
+    return bound_args.args, picked_kwargs
 
 
 class FillDefaultDict(nn.ModuleDict):
     def __init__(self, **kw_funcs):
-        super().__init__(kw_funcs)
+        kw = OrderedDict([(k, PureFunc(v)) for k, v in kw_funcs.items()])
+        super().__init__(kw)
 
     def forward(self, src):
-        result_dict = OrderedDict()
         if isinstance(src, dict):
             args, kwargs = [], dict(src)
         else:
@@ -102,12 +107,10 @@ class FillDefaultDict(nn.ModuleDict):
         while is_dirty:
             is_dirty = False
             for key, func in self.items():
-                if key in src:
-                    kwargs[key] = src[key]
-                else:
+                if key not in kwargs:
                     bound_args, picked_kwargs = satisfy_args(args, func, kwargs)
                     if picked_kwargs is not None:
-                        result_dict[key] = func(*bound_args, **picked_kwargs)
+                        kwargs[key] = func(*bound_args, **picked_kwargs)
                         is_dirty = True
         result_dict = OrderedDict()
         for key in self:
@@ -144,15 +147,15 @@ class MyBertModel(nn.Module):
     def _embeddings(self, hidden_size, layer_norm_eps, hidden_dropout_prob, vocab_size, pad_token_id,
                     type_vocab_size, max_position_embeddings):
         return named_sequential(
-            id_filling=BroadcastDict(
-                input_ids=lambda x: x,
-                position_ids=lambda x: torch.arange(
-                    x.shape[1], dtype=torch.long,
-                    device=x.device
-                ).unsqueeze(0).expand(x.size()),
-                token_type_ids=lambda x: torch.zeros(
-                    x.size(), dtype=torch.long,
-                    device=x.device
+            id_filling=FillDefaultDict(
+                input_ids=lambda input_ids: input_ids,
+                position_ids=lambda input_ids: torch.arange(
+                    input_ids.shape[1], dtype=torch.long,
+                    device=input_ids.device
+                ).unsqueeze(0).expand(input_ids.size()),
+                token_type_ids=lambda input_ids: torch.zeros(
+                    input_ids.size(), dtype=torch.long,
+                    device=input_ids.device
                 ),
             ),
             rename=PureFunc(dict_rename(
