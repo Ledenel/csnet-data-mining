@@ -216,11 +216,27 @@ class MyBertModel(nn.Module):
             )
         )
 
-    def _layer(self):
+    def _layer(self, intermediate_size, hidden_size, hidden_dropout_prob,
+               layer_norm_eps):
+        """
+        10  | model.encoder.layer.0.attention                  | BertAttention     | 2 M
+        20  | model.encoder.layer.0.intermediate               | BertIntermediate  | 2 M
+        21  | model.encoder.layer.0.intermediate.dense         | Linear            | 2 M
+        22  | model.encoder.layer.0.output                     | BertOutput        | 2 M
+        23  | model.encoder.layer.0.output.dense               | Linear            | 2 M
+        24  | model.encoder.layer.0.output.LayerNorm           | LayerNorm         | 1 K
+        25  | model.encoder.layer.0.output.dropout
+        """
         return named_sequential(
             attention=self._attention(),
-            intermediate=AppendInput(self._intermediate()),
-            output=self._layer_output(),
+            output=Residual(named_sequential(
+                intermediate=self._intermediate(),
+                # FIXME: expected dense dropout, actual dense_transform.dense dense_trasform.dropout
+                dense=nn.Linear(intermediate_size, hidden_size),
+                # FIXME: expected LayerNorm, actual layer_norm
+                dropout=nn.Dropout(hidden_dropout_prob),
+            )),
+            layer_norm=nn.LayerNorm(hidden_size, eps=layer_norm_eps),
         )
 
     def _attention(self):
@@ -229,17 +245,17 @@ class MyBertModel(nn.Module):
     def _intermediate(self):
         pass
 
-    def _layer_output(self, intermediate_size, hidden_size, hidden_dropout_prob,
-                      layer_norm_eps):  # (intermediate_output, attention_output)
-        return named_sequential(
-            # FIXME: expected dense dropout, actual dense_transform.dense dense_trasform.dropout
-            dense_transform=Residual(named_sequential(
-                dense=nn.Linear(intermediate_size, hidden_size),
-                # FIXME: expected LayerNorm, actual layer_norm
-                dropout=nn.Dropout(hidden_dropout_prob),
-            )),
-            layer_norm=nn.LayerNorm(hidden_size, eps=layer_norm_eps),
-        )
+    # def _layer_output(self, intermediate_size, hidden_size, hidden_dropout_prob,
+    #                   layer_norm_eps):  # (intermediate_output, attention_output)
+    #     return named_sequential(
+    #         # FIXME: expected dense dropout, actual dense_transform.dense dense_trasform.dropout
+    #         dense_transform=Residual(named_sequential(
+    #             dense=nn.Linear(intermediate_size, hidden_size),
+    #             # FIXME: expected LayerNorm, actual layer_norm
+    #             dropout=nn.Dropout(hidden_dropout_prob),
+    #         )),
+    #         layer_norm=nn.LayerNorm(hidden_size, eps=layer_norm_eps),
+    #     )
 
     def _pooler(self, hidden_size):
         return named_sequential(
