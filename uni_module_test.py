@@ -157,6 +157,7 @@ class DictPipe(nn.Sequential):
         for name, module in self._modules.items():
             if name not in out:
                 out_submodule = module(out)
+                # TODO: is out["a.b"] better than out["a"]["b"]?
                 if isinstance(out_submodule, dict):
                     out_submodule = {
                         "{}.{}".format(name, key): item
