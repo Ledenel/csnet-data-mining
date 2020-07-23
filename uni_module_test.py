@@ -1,8 +1,8 @@
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 
 import torch
 from torch import nn, tensor
-
+import inspect
 
 def named_sequential(**kwargs):
     return nn.Sequential(OrderedDict(kwargs))
@@ -20,10 +20,10 @@ def dict_rename(**rename_table):
 class PureFunc(nn.Module):
     def __init__(self, func):
         super().__init__()
-        self.func = func
+        self.__wrapped__ = func
 
     def forward(self, *args, **kwargs):
-        return self.func(*args, **kwargs)
+        return self.__wrapped__(*args, **kwargs)
 
 
 class Residual(nn.Module):
@@ -71,21 +71,50 @@ class ScatterList(nn.ModuleList):
         return [func(x) for func, x in zip(self, scatter_list)]
 
 
-class FillDefaultDict(nn.ModuleDict):
-    def __init__(self, **kwmodules):
-        super().__init__(kwmodules)
+def satisfy_args(args, func, kwargs):
+    sig = inspect.signature(func)
+    bound_args = sig.bind_partial(*args)
+    picked_kwargs = {}
+    for param in sig.parameters.values():
+        if param.name not in bound_args.arguments \
+                and param.kind is not inspect.Parameter.VAR_POSITIONAL \
+                and param.kind is not inspect.Parameter.VAR_KEYWORD \
+                and param.kind is not inspect.Parameter.POSITIONAL_ONLY:
+            if param.name in kwargs:
+                picked_kwargs[param.name] = kwargs[param.name]
+            elif param.default is not inspect.Parameter.empty:
+                return bound_args.arguments, None
+    return bound_args.arguments, picked_kwargs
 
-    def forward(self, src_dict_or_x):
-        if isinstance(src_dict_or_x, dict):
-            src_dict = OrderedDict(src_dict_or_x)
-        else:
-            src_dict = OrderedDict()
+
+class FillDefaultDict(nn.ModuleDict):
+    def __init__(self, **kw_funcs):
+        super().__init__(kw_funcs)
+
+    def forward(self, src):
         result_dict = OrderedDict()
-        for key, func in self.items():
-            if key in src_dict:
-                result_dict[key] = src_dict[key]
+        if isinstance(src, dict):
+            args, kwargs = [], dict(src)
+        else:
+            args, kwargs = [src], {}
+
+        is_dirty = True
+        while is_dirty:
+            is_dirty = False
+            for key, func in self.items():
+                if key in src:
+                    kwargs[key] = src[key]
+                else:
+                    bound_args, picked_kwargs = satisfy_args(args, func, kwargs)
+                    if picked_kwargs is not None:
+                        result_dict[key] = func(*bound_args, **picked_kwargs)
+                        is_dirty = True
+        result_dict = OrderedDict()
+        for key in self:
+            if key not in kwargs:
+                raise ValueError("Could not satisfy default value for '{}'".format(key))
             else:
-                result_dict[key] = func(src_dict_or_x)
+                result_dict[key] = kwargs[key]
         return result_dict
 
 
