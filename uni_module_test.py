@@ -156,6 +156,9 @@ class DictPipe(nn.Sequential):
         out = dict(dic)
         for name, module in self._modules.items():
             if name not in out:
+                # TODO: when dealing with pure number key,
+                # assume inner module is a plain function, input is a plain tensor?
+                # but we just output more, which can be done by IntermediateLayerGetter
                 out_submodule = module(out)
                 # TODO: is out["a.b"] better than out["a"]["b"]?
                 if isinstance(out_submodule, dict):
