@@ -1,4 +1,5 @@
 from collections import OrderedDict, defaultdict
+from functools import wraps
 
 import torch
 from torch import nn, tensor
@@ -138,6 +139,34 @@ class SequentialWithInput(nn.Sequential):
         for module in self:
             x = [module(x), x]
         return x
+
+
+def as_kwargs(func):
+    def _kwarg_caller(**kwargs):
+        return func(kwargs)
+
+    return _kwarg_caller()
+
+
+class DictPipe(nn.Sequential):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def forward(self, dic: dict):
+        out = dict(dic)
+        for name, module in self._modules.items():
+            if name not in out:
+                out_submodule = module(out)
+                if isinstance(out_submodule, dict):
+                    out_submodule = {
+                        "{}.{}".format(name, key): item
+                        for key, item in out_submodule.items()
+                    }
+                    out.update(out_submodule)
+                else:
+                    out[name] = out_submodule
+
+        return out
 
 
 class MyBertModel(nn.Module):
