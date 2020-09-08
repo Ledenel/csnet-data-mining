@@ -1,3 +1,4 @@
+import math
 from collections import OrderedDict, defaultdict
 from functools import wraps
 
@@ -239,8 +240,29 @@ class MyBertModel(nn.Module):
             layer_norm=nn.LayerNorm(hidden_size, eps=layer_norm_eps),
         )
 
-    def _attention(self):
-        pass
+    def _self_attention(self, hidden_size, all_head_size, num_attention_heads, attention_head_size,
+                        attention_probs_dropout_prob):
+        return named_sequential(
+            qkv_prepare=BroadcastDict(
+                query=nn.Linear(hidden_size, all_head_size),
+                key=nn.Linear(hidden_size, all_head_size),
+                value=nn.Linear(hidden_size, all_head_size),
+            ),
+            cutoff=lambda dic: {
+                k: v.view(
+                    v.size()[:-1] + (num_attention_heads, attention_head_size)
+                ).permute(0, 2, 1, 3)
+                for k, v in dic.items()
+            },
+            matmul=PureFunc(lambda query, key: torch.matmul(query, key.transpose(-1, -2))),
+            norm=PureFunc(lambda x: x / math.sqrt(attention_head_size)),
+            masking=PureFunc(lambda x, attention_mask: x + attention_mask),
+            attn=nn.Softmax(dim=-1),
+            attn_dropout=nn.Dropout(attention_probs_dropout_prob),
+            value=PureFunc(lambda x, values: torch.matmul(x, values)),
+            head_merge=PureFunc(lambda x: x.permute(0, 2, 1, 3).contiguous()),
+            fusion=PureFunc(lambda x: x.view(x.size()[:-2] + (all_head_size,))),
+        )
 
     def _intermediate(self):
         pass
