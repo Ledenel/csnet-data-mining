@@ -2,7 +2,7 @@ CodeSearchNet data mining.
 
 ## Reproduce
 
-Required python >= 3.8.
+Required python >= 3.7.
 
 install requirements via `pip install -r requirements.txt`
 
