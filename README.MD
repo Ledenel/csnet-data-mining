@@ -1,5 +1,7 @@
 CodeSearchNet data mining.
 
+**for linux only.**
+
 ## Reproduce
 
 Required python >= 3.7.
