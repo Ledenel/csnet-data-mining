@@ -6,7 +6,7 @@ dataset.init()
 
 import glob
 
-all_jsonls = glob.glob("**/*.jsonl.gz", recursive=True)
+all_jsonls = glob.glob("**\\*.jsonl.gz", recursive=True)
 
 language_reg="(python|javascript|java|ruby|php|go)"
 split_reg="(train|test|valid)"
@@ -29,33 +29,33 @@ wildcard_constraints:
 
 rule all:
     input:
-        # "stats/field_context_l2_stats.csv",
-        # directory("stats/go_train_0")
-        # "stats/go_train_0.value_count_stat.csv",
-        # "stats/ruby_all.value_count_stat.csv",
-        # "profill/go_train_0.seq_best.csv",
-        # "corpus/go_train_0.doc.txt",
-        # "corpus/go_train_0.code.txt",
-        # "corpus/tokenizer/go_train_0.code-size=20000/vocab.txt",
-        # expand("roberta_{lang}_all.done", lang="python|javascript|java|ruby|php|go".split("|")),
-        # "stats/ruby-valid_0-combined_label-counts.csv"
-        # expand("stats/{lang}-all-{lb}-counts.csv", lang="python|javascript|java|ruby|php|go".split("|"), lb=["type_label", "combined_label"]),
-        expand("roberta_ast_label_{lang}_all-type_label.done", lang="javascript|java|ruby|php|go".split("|"))
-        # directory("model_param/pretrain/go_train_0-tokenizer:size=20000"),
+        # "stats\\field_context_l2_stats.csv",
+        # directory("stats\\go_train_0")
+        # "stats\\go_train_0.value_count_stat.csv",
+        # "stats\\ruby_all.value_count_stat.csv",
+        # "profill\\go_train_0.seq_best.csv",
+        # "corpus\\go_train_0.doc.txt",
+        # "corpus\\go_train_0.code.txt",
+        # "corpus\\tokenizer\\go_train_0.code-size=20000\\vocab.txt",
+        expand("roberta_{lang}_all.done", lang="python|javascript|java|ruby|php|go".split("|")),
+        # "stats\\ruby-valid_0-combined_label-counts.csv"
+        # expand("stats\\{lang}-all-{lb}-counts.csv", lang="python|javascript|java|ruby|php|go".split("|"), lb=["type_label", "combined_label"]),
+        # expand("roberta_ast_label_{lang}_all-type_label.done", lang="javascript|java|ruby|php|go".split("|"))
+        # directory("model_param\\pretrain\\go_train_0-tokenizer:size=20000"),
 
 rule extract_language_stat:
     # input:
     #     jsonl_path_table["path"]
     output:
-        "stats/field_context_l2_stats.csv"
+        "stats\\field_context_l2_stats.csv"
     script:
         "stat.py"
 
 checkpoint build_params_of_seq_benchmark:
     input:
-        "data_cache/{dataset}.pkl"
+        "data_cache\\{dataset}.pkl"
     output:
-        "profill/{dataset}.seq_benchmark.params.pkl"
+        "profill\\{dataset}.seq_benchmark.params.pkl"
     run:
         import pandas as pd
         import numpy as np
@@ -108,7 +108,7 @@ def _seq_benchmark_files_from_params(wildcards):
     #
     with open(checkpoints.build_params_of_seq_benchmark.get(dataset=wildcards.dataset).output[0], mode="rb") as f:
         for item in pickle.load(f):
-            yield ("profill/temp/{{dataset}}/"
+            yield ("profill\\temp\\{{dataset}}\\"
             "{seq_name}--{seq_method}--{seq_cores}--{seq_nbuffer}.float.pkl").format(**item).format(**wildcards)
 
 def seq_benchmark_files_from_params(wildcards):
@@ -118,9 +118,9 @@ def seq_benchmark_files_from_params(wildcards):
 
 rule benchmark_one:
     input:
-        dataset = "data_cache/{dataset}.pkl",
+        dataset = "data_cache\\{dataset}.pkl",
     output:
-        "profill/temp/{dataset}/{seq_name}--{seq_method}--{seq_cores}--{seq_nbuffer}.float.pkl"
+        "profill\\temp\\{dataset}\\{seq_name}--{seq_method}--{seq_cores}--{seq_nbuffer}.float.pkl"
     script:
         "seq_benchmark_one.py"
 
@@ -132,9 +132,9 @@ def pickle_load(file_path):
 rule extract_benchmark_seq:
     input:
         seq_benchmark_files_from_params,
-        config="profill/{dataset}.seq_benchmark.params.pkl",
+        config="profill\\{dataset}.seq_benchmark.params.pkl",
     output:
-        "profill/{dataset}.seq_benchmark.csv",
+        "profill\\{dataset}.seq_benchmark.csv",
         
     run:
         import pickle
@@ -154,9 +154,9 @@ rule extract_benchmark_seq:
 
 rule pick_benchmark_seq_best:
     input:
-        "profill/{dataset}.seq_benchmark.csv"
+        "profill\\{dataset}.seq_benchmark.csv"
     output:
-        best="profill/{dataset}.seq_best.csv"
+        best="profill\\{dataset}.seq_best.csv"
     run:
         import pandas as pd
         import numpy as np
@@ -175,9 +175,9 @@ rule pick_benchmark_seq_best:
         
 rule build_corpus_raw:
     input:
-        "data_cache/{dataset}.pkl"
+        "data_cache\\{dataset}.pkl"
     output:
-        "corpus/{dataset}.{corpus_type,(code|doc)}.txt",
+        "corpus\\{dataset}.{corpus_type,(code|doc)}.txt",
     run:
         from dataset_seq import seq_all
         seq_dicts = seq_all(input[0])
@@ -189,9 +189,9 @@ rule build_corpus_raw:
 
 rule build_counter_on_dataset:
     input:
-        "data_cache/{dataset}.pkl"
+        "data_cache\\{dataset}.pkl"
     output:
-        "corpus/{dataset}.{corpus_type,(code|doc)}.counter.json",
+        "corpus\\{dataset}.{corpus_type,(code|doc)}.counter.json",
     run:
         from dataset_seq import seq_all
         from collections import Counter
@@ -206,9 +206,9 @@ rule build_counter_on_dataset:
 
 rule train_tokenizer:
     input:
-        "corpus/{dataset}.{corpus_type}.txt",
+        "corpus\\{dataset}.{corpus_type}.txt",
     output:
-        "corpus/tokenizer/{dataset}.{corpus_type}-size={vocab}/vocab.txt",
+        "corpus\\tokenizer\\{dataset}.{corpus_type}-size={vocab}\\vocab.txt",
     run:
         from tokenizers import BertWordPieceTokenizer
         tokenizer = BertWordPieceTokenizer(
@@ -230,11 +230,11 @@ rule train_tokenizer:
 
 rule pretrain_bert:
     input:
-        train = "data_cache/{lang}_train_{extra}.pkl",
-        doc_tokenizer = "corpus/tokenizer/{lang}_train_{extra}.doc-{config}/vocab.txt",
-        code_tokenizer = "corpus/tokenizer/{lang}_train_{extra}.code-{config}/vocab.txt",
+        train = "data_cache\\{lang}_train_{extra}.pkl",
+        doc_tokenizer = "corpus\\tokenizer\\{lang}_train_{extra}.doc-{config}\\vocab.txt",
+        code_tokenizer = "corpus\\tokenizer\\{lang}_train_{extra}.code-{config}\\vocab.txt",
     output:
-        model_ckpt = directory("model_param/pretrain/{lang}_train_{extra}-tokenizer:{config}"),
+        model_ckpt = directory("model_param\\pretrain\\{lang}_train_{extra}-tokenizer:{config}"),
     run:
         from tokenizers import BertWordPieceTokenizer
         from transformers import BertModel
@@ -243,9 +243,9 @@ rule pretrain_bert:
 
 rule train_eval_bert_scratch_dev:
     input:
-        train = "data_cache/{lang}_train_{extra}.pkl",
-        valid = "data_cache/{lang}_valid_{extra}.pkl",
-        test = "data_cache/{lang}_test_{extra}.pkl",
+        train = "data_cache\\{lang}_train_{extra}.pkl",
+        valid = "data_cache\\{lang}_valid_{extra}.pkl",
+        test = "data_cache\\{lang}_test_{extra}.pkl",
     output:
         done = touch("bert_scratch_{lang}_{extra}_fast.done")
     params:
@@ -258,9 +258,9 @@ rule train_eval_bert_scratch_dev:
 
 rule roberta_train:
     input:
-        train = "data_cache/{lang}_train_{extra}.pkl",
-        valid = "data_cache/{lang}_valid_{extra}.pkl",
-        test = "data_cache/{lang}_test_{extra}.pkl",
+        train = "data_cache\\{lang}_train_{extra}.pkl",
+        valid = "data_cache\\{lang}_valid_{extra}.pkl",
+        test = "data_cache\\{lang}_test_{extra}.pkl",
         # fast_dev = "bert_scratch_{lang}_{extra}_fast.done",
     output:
         done = touch("roberta_{lang}_{extra}.done")
@@ -274,9 +274,9 @@ rule roberta_train:
 
 rule roberta_ast_label_dataset:
     input:
-        "data_cache/{dataset}.pkl"
+        "data_cache\\{dataset}.pkl"
     output:
-        "data_cache/label/{dataset}-{label_type}.pkl"
+        "data_cache\\label\\{dataset}-{label_type}.pkl"
     params:
         label_type = "{label_type}",
     script:
@@ -284,10 +284,10 @@ rule roberta_ast_label_dataset:
 
 rule roberta_ast_label_dataset_filter:
     input:
-        "data_cache/label/{dataset}-{label_type}.pkl",
-        "data_cache/{dataset}.pkl",
+        "data_cache\\label\\{dataset}-{label_type}.pkl",
+        "data_cache\\{dataset}.pkl",
     output:
-        "data_cache/label/filter/{dataset}-{label_type}-label{label_min}-minlen{min_len}-maxlen{max_len}.pkl"
+        "data_cache\\label\\filter\\{dataset}-{label_type}-label{label_min}-minlen{min_len}-maxlen{max_len}.pkl"
     params:
         label_min = "{label_min}",
         min_len = "{min_len}",
@@ -297,7 +297,7 @@ rule roberta_ast_label_dataset_filter:
         from transformers import AutoTokenizer
         from ast_label_pretrain import fetch_code_pieces
         import seqtools as sq
-        tokenizer = AutoTokenizer.from_pretrained("huggingface/CodeBERTa-small-v1", resume_download=True)
+        tokenizer = AutoTokenizer.from_pretrained("huggingface\\CodeBERTa-small-v1", resume_download=True)
         df = pd.read_pickle(input[0])
         # col_codes = pd.read_pickle(input[1])["code"]
         # code_col = fetch_code_pieces(col_codes, df["sample_id"], df["index"])
@@ -317,9 +317,9 @@ rule roberta_ast_label_dataset_filter:
 
 rule roberta_ast_label_plot:
     input:
-        "data_cache/label/{dataset}-{label_type}.pkl"
+        "data_cache\\label\\{dataset}-{label_type}.pkl"
     output:
-        "stats/label/{dataset}-{label_type}_len_plot.png"
+        "stats\\label\\{dataset}-{label_type}_len_plot.png"
     run:
         import pandas as pd
         import matplotlib.pyplot as plt
@@ -342,15 +342,15 @@ rule roberta_ast_label_plot:
 
 rule roberta_ast_label_pretrain:
     input:
-        train = "data_cache/{lang}_train_{extra}.pkl",
-        valid = "data_cache/{lang}_valid_{extra}.pkl",
-        test = "data_cache/{lang}_test_{extra}.pkl",
-        train_label = "data_cache/label/filter/{lang}_train_{extra}-{label_type}-label2-minlen16-maxlen128.pkl",
-        valid_label = "data_cache/label/filter/{lang}_valid_{extra}-{label_type}-label2-minlen16-maxlen128.pkl",
-        label_summary = "stats/{lang}-{extra}-{label_type}-counts.csv",
+        train = "data_cache\\{lang}_train_{extra}.pkl",
+        valid = "data_cache\\{lang}_valid_{extra}.pkl",
+        test = "data_cache\\{lang}_test_{extra}.pkl",
+        train_label = "data_cache\\label\\filter\\{lang}_train_{extra}-{label_type}-label2-minlen16-maxlen128.pkl",
+        valid_label = "data_cache\\label\\filter\\{lang}_valid_{extra}-{label_type}-label2-minlen16-maxlen128.pkl",
+        label_summary = "stats\\{lang}-{extra}-{label_type}-counts.csv",
     output:
         done = touch("roberta_ast_label_{lang}_{extra}-{label_type}.done"),
-        model = "pretrained_module/roberta_ast_label_pretrain_on_{lang}_{extra}-{label_type}/model.ckpt",
+        model = "pretrained_module\\roberta_ast_label_pretrain_on_{lang}_{extra}-{label_type}\\model.ckpt",
     params:
         label_mode = "all_except_one_parent",
         label_type = "{label_type}",
@@ -365,10 +365,10 @@ rule roberta_ast_label_pretrain:
 
 rule roberta_ast_label_finetuning:
     input:
-        train = "data_cache/{lang}_train_{extra}.pkl",
-        valid = "data_cache/{lang}_valid_{extra}.pkl",
-        test = "data_cache/{lang}_test_{extra}.pkl",
-        model = ancient("pretrained_module/roberta_ast_label_pretrain_on_{lang}_{extra}-{label_type}/model.ckpt"),
+        train = "data_cache\\{lang}_train_{extra}.pkl",
+        valid = "data_cache\\{lang}_valid_{extra}.pkl",
+        test = "data_cache\\{lang}_test_{extra}.pkl",
+        model = ancient("pretrained_module\\roberta_ast_label_pretrain_on_{lang}_{extra}-{label_type}\\model.ckpt"),
     output:
         done = touch("roberta_ast_label_finetuning_{lang}_{extra}-{label_type}.done")
     params:
@@ -381,12 +381,12 @@ rule roberta_ast_label_finetuning:
 
 rule roberta_mask_pretrain:
     input:
-        train = "data_cache/{lang}_train_{extra}.pkl",
-        valid = "data_cache/{lang}_valid_{extra}.pkl",
-        test = "data_cache/{lang}_test_{extra}.pkl",
+        train = "data_cache\\{lang}_train_{extra}.pkl",
+        valid = "data_cache\\{lang}_valid_{extra}.pkl",
+        test = "data_cache\\{lang}_test_{extra}.pkl",
     output:
         done = touch("roberta_mask_{lang}_{extra}.done"),
-        model = "pretrained_module/roberta_ast_mask_on_{lang}_{extra}/model.ckpt",
+        model = "pretrained_module\\roberta_ast_mask_on_{lang}_{extra}\\model.ckpt",
     params:
         train_batch = 64,
         train_max_len = 32,
@@ -399,10 +399,10 @@ rule roberta_mask_pretrain:
 
 rule roberta_mask_finetuning:
     input:
-        train = "data_cache/{lang}_train_{extra}.pkl",
-        valid = "data_cache/{lang}_valid_{extra}.pkl",
-        test = "data_cache/{lang}_test_{extra}.pkl",
-        model = ancient("pretrained_module/roberta_ast_mask_on_{lang}_{extra}/model.ckpt"),
+        train = "data_cache\\{lang}_train_{extra}.pkl",
+        valid = "data_cache\\{lang}_valid_{extra}.pkl",
+        test = "data_cache\\{lang}_test_{extra}.pkl",
+        model = ancient("pretrained_module\\roberta_ast_mask_on_{lang}_{extra}\\model.ckpt"),
     output:
         done = touch("roberta_mask_finetuning_{lang}_{extra}.done")
     params:
@@ -417,9 +417,9 @@ rule roberta_mask_finetuning:
 
 rule cache_dataset_chunk_to_pickle:
     input:
-        "data/{language}/final/jsonl/{split}/{language}_{split}_{chunk}.jsonl.gz"
+        "data\\{language}\\final\\jsonl\\{split}\\{language}_{split}_{chunk}.jsonl.gz"
     output:
-        out = temp("data_cache/{language}_{split}_{chunk}.pkl"),
+        out = temp("data_cache\\{language}_{split}_{chunk}.pkl"),
     run:
         import pandas as pd
         
@@ -428,9 +428,9 @@ rule cache_dataset_chunk_to_pickle:
 
 rule copy_test_column_from_ruby_test_1:
     input:
-        "stats/ruby_test_1.columns.pkl"
+        "stats\\ruby_test_1.columns.pkl"
     output:
-        "stats/column.txt"
+        "stats\\column.txt"
     run:
         import pandas as pd
         with open(output[0], "w") as f:
@@ -441,13 +441,13 @@ rule copy_test_column_from_ruby_test_1:
 
 rule stat_of_dataset:
     input:
-        "data_cache/{dataset}.pkl"
+        "data_cache\\{dataset}.pkl"
     output:
-        # directory("stats/{dataset}"),
-        meta = "stats/{dataset}.meta.log",
-        columns = "stats/{dataset}.columns.pkl",
-        len_stat_csv = "stats/{dataset}.len_stat.csv",
-        value_counts_csv = "stats/{dataset}.value_count_stat.csv", 
+        # directory("stats\\{dataset}"),
+        meta = "stats\\{dataset}.meta.log",
+        columns = "stats\\{dataset}.columns.pkl",
+        len_stat_csv = "stats\\{dataset}.len_stat.csv",
+        value_counts_csv = "stats\\{dataset}.value_count_stat.csv", 
     run:
         import contextlib as ctx
         import pandas as pd
@@ -502,14 +502,14 @@ def dataset_format_paths(output_args, format, wildcards):
 
 #equally func
 def dataset_format_paths_language(wildcards):
-    return dataset_format_paths(["dataset_chunk"], "data_cache/{dataset_chunk}.pkl", wildcards)
+    return dataset_format_paths(["dataset_chunk"], "data_cache\\{dataset_chunk}.pkl", wildcards)
 
 rule merge_language_dataset:
     input:
         dataset_format_paths_language,
-        # dataset_format_paths(["dataset_chunk"], "data_cache/{dataset_chunk}.pkl"),
+        # dataset_format_paths(["dataset_chunk"], "data_cache\\{dataset_chunk}.pkl"),
     output:
-        "data_cache/{language}_all.pkl"
+        "data_cache\\{language}_all.pkl"
     run:
         import pandas as pd
         merged = pd.concat([pd.read_pickle(path) for path in input])
@@ -519,10 +519,10 @@ rule merge_language_dataset:
 
 rule merge_language_chunk_dataset:
     input:
-        lambda wildcards: dataset_format_paths(["dataset_chunk"], "data_cache/{dataset_chunk}.pkl", wildcards),
-        # dataset_format_paths(["dataset_chunk"], "data_cache/{dataset_chunk}.pkl"),
+        lambda wildcards: dataset_format_paths(["dataset_chunk"], "data_cache\\{dataset_chunk}.pkl", wildcards),
+        # dataset_format_paths(["dataset_chunk"], "data_cache\\{dataset_chunk}.pkl"),
     output:
-        "data_cache/{language}_{chunk}.pkl"
+        "data_cache\\{language}_{chunk}.pkl"
     run:
         import pandas as pd
         merged = pd.concat([pd.read_pickle(path) for path in input])
@@ -533,9 +533,9 @@ rule merge_language_chunk_dataset:
 rule merge_language_dataset_split_part:
     input:
         dataset_format_paths_language,
-        # dataset_format_paths(["dataset_chunk"], "data_cache/{dataset_chunk}.pkl"),
+        # dataset_format_paths(["dataset_chunk"], "data_cache\\{dataset_chunk}.pkl"),
     output:
-        "data_cache/{language}_{split}_all.pkl"
+        "data_cache\\{language}_{split}_all.pkl"
     run:
         import pandas as pd
         merged = pd.concat([pd.read_pickle(path) for path in input])
@@ -544,9 +544,9 @@ rule merge_language_dataset_split_part:
 
 rule count_ast_label:
     input:
-        "data_cache/{lang}_{spec}.pkl"
+        "data_cache\\{lang}_{spec}.pkl"
     output:
-        "stats/{lang}-{spec}-{ast_label}-counts.csv"
+        "stats\\{lang}-{spec}-{ast_label}-counts.csv"
     script:
         "ast_label.py"
 # import pandas as pd
