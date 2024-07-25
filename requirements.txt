@@ -1,7 +1,7 @@
 --find-links https://download.pytorch.org/whl/torch_stable.html
 git+https://github.com/Ledenel/py-tree-sitter.git
 tqdm
-torch==1.5.1+cpu
+torch==2.2.0
 dpu-utils
 sentencepiece
 psutil
